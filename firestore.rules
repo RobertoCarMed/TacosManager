@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function taqueriaPath(taqueriaId) {
+      return /databases/$(database)/documents/taquerias/$(taqueriaId);
+    }
+
+    function userDocExists() {
+      return isSignedIn() && exists(userPath(request.auth.uid));
+    }
+
+    function currentUser() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function isValidRole(role) {
+      return role in ['waiter', 'cook'];
+    }
+
+    function belongsToTaqueria(taqueriaId) {
+      return userDocExists() && currentUser().taqueriaId == taqueriaId;
+    }
+
+    function isTaqueriaOwner(taqueriaId) {
+      return isSignedIn()
+        && exists(taqueriaPath(taqueriaId))
+        && get(taqueriaPath(taqueriaId)).data.ownerId == request.auth.uid;
+    }
+
+    function isValidTaqueriaCreate() {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'normalizedName',
+          'address',
+          'city',
+          'state',
+          'ownerId',
+          'createdAt'
+        ])
+        && request.resource.data.id is string
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.normalizedName is string
+        && request.resource.data.normalizedName.size() > 0
+        && request.resource.data.address is string
+        && request.resource.data.address.size() > 0
+        && request.resource.data.city is string
+        && request.resource.data.city.size() > 0
+        && request.resource.data.state is string
+        && request.resource.data.state.size() > 0
+        && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    function isValidUserCreate(userId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'email',
+          'role',
+          'taqueriaId',
+          'createdAt'
+        ])
+        && request.resource.data.id == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 0
+        && isValidRole(request.resource.data.role)
+        && request.resource.data.taqueriaId is string
+        && exists(taqueriaPath(request.resource.data.taqueriaId));
+    }
+
+    function isValidUserUpdate(userId) {
+      return request.resource.data.id == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.taqueriaId == resource.data.taqueriaId
+        && isValidRole(request.resource.data.role);
+    }
+
+    function isValidOrderCreate() {
+      return request.resource.data.keys().hasOnly(['table', 'items', 'status', 'createdAt'])
+        && request.resource.data.table is string
+        && request.resource.data.table.size() > 0
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.status == 'pending';
+    }
+
+    function isValidOrderStatusUpdate() {
+      return request.resource.data.table == resource.data.table
+        && request.resource.data.items == resource.data.items
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status in ['pending', 'preparing', 'ready', 'completed'];
+    }
+
+    match /taquerias/{taqueriaId} {
+      allow create: if isSignedIn() && isValidTaqueriaCreate();
+      allow read: if true;
+      allow update: if isTaqueriaOwner(taqueriaId);
+      allow delete: if false;
+
+      match /orders/{orderId} {
+        allow read: if belongsToTaqueria(taqueriaId) || isTaqueriaOwner(taqueriaId);
+
+        allow create: if belongsToTaqueria(taqueriaId)
+          && currentUser().role == 'waiter'
+          && isValidOrderCreate();
+
+        allow update: if belongsToTaqueria(taqueriaId)
+          && currentUser().role == 'cook'
+          && isValidOrderStatusUpdate();
+
+        allow delete: if false;
+      }
+
+      match /products/{productId} {
+        allow read: if belongsToTaqueria(taqueriaId) || isTaqueriaOwner(taqueriaId);
+
+        allow create: if belongsToTaqueria(taqueriaId)
+          && currentUser().role == 'cook'
+          && request.resource.data.keys().hasOnly([
+            'id',
+            'name',
+            'price',
+            'imageUrl',
+            'taqueriaId',
+            'createdAt'
+          ])
+          && request.resource.data.id == productId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.price is number
+          && request.resource.data.price > 0
+          && request.resource.data.taqueriaId == taqueriaId
+          && request.resource.data.createdAt is number
+          && (
+            !('imageUrl' in request.resource.data)
+            || (request.resource.data.imageUrl is string
+              && request.resource.data.imageUrl.size() > 0)
+          );
+
+        allow update: if belongsToTaqueria(taqueriaId)
+          && currentUser().role == 'cook'
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.taqueriaId == resource.data.taqueriaId;
+
+        allow delete: if belongsToTaqueria(taqueriaId)
+          && currentUser().role == 'cook';
+      }
+    }
+
+    match /users/{userId} {
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && isValidUserCreate(userId);
+
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && isValidUserUpdate(userId);
+
+      allow delete: if false;
+    }
+  }
+}
