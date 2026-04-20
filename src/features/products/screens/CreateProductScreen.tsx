@@ -1,9 +1,12 @@
 import React from 'react';
-import {Alert, Image, StyleSheet, Text, View} from 'react-native';
-import {AppButton, Screen} from '../../../shared/components';
-import {theme} from '../../../shared/constants';
-import {AuthInput} from '../../auth/components/AuthInput';
-import {useCreateProduct} from '../hooks/useCreateProduct';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
+import { AppButton, Screen } from '../../../shared/components';
+import { theme } from '../../../shared/constants';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { KitchenStackParamList } from '../../../navigation/types';
+import { AuthInput } from '../../auth/components/AuthInput';
+import { useCreateProduct } from '../hooks/useCreateProduct';
 
 export function CreateProductScreen() {
   const {
@@ -20,11 +23,13 @@ export function CreateProductScreen() {
     setPrice,
   } = useCreateProduct();
 
+  const navigation = useNavigation<NativeStackNavigationProp<KitchenStackParamList>>();
+
   const handleSaveProduct = async () => {
     const wasSaved = await saveProduct();
-
+    Alert.alert('Producto guardado', 'El producto se ha guardado correctamente');
     if (wasSaved) {
-      Alert.alert('Producto guardado', 'El producto se agrego al menu de tu taqueria.');
+      navigation.goBack();
     }
   };
 
@@ -56,7 +61,7 @@ export function CreateProductScreen() {
           <Text style={styles.label}>Imagen (opcional)</Text>
 
           {imageUri ? (
-            <Image source={{uri: imageUri}} style={styles.preview} />
+            <Image source={{ uri: imageUri }} style={styles.preview} />
           ) : (
             <View style={styles.emptyPreview}>
               <Text style={styles.emptyPreviewText}>No hay imagen seleccionada</Text>

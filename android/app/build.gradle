@@ -3,6 +3,14 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: 'com.google.gms.google-services'
 
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
+def envProperties = new Properties()
+def envFile = rootProject.file("../.env")
+if (envFile.exists()) {
+    envProperties.load(new FileInputStream(envFile))
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -93,15 +101,19 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            storeFile file(envProperties['MYAPP_UPLOAD_STORE_FILE'] ?: "")
+            storePassword envProperties['MYAPP_UPLOAD_STORE_PASSWORD'] ?: ""
+            keyAlias envProperties['MYAPP_UPLOAD_KEY_ALIAS'] ?: ""
+            keyPassword envProperties['MYAPP_UPLOAD_KEY_PASSWORD'] ?: ""
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
