@@ -24,6 +24,8 @@ const statusColors: Record<Order['status'], string> = {
 };
 
 export function OrderCard({footer, order}: OrderCardProps) {
+  const hasPlates = order.plates && order.plates.length > 0;
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -42,13 +44,33 @@ export function OrderCard({footer, order}: OrderCardProps) {
         </View>
       </View>
 
-      <View style={styles.itemsContainer}>
-        {order.items.map((item, index) => (
-          <Text key={item.id ?? `${item.name}-${index}`} style={styles.itemText}>
-            {item.quantity}x {item.name}
-          </Text>
-        ))}
-      </View>
+      {hasPlates ? (
+        <View style={styles.platesContainer}>
+          {order.plates.map((plate, plateIndex) => (
+            <View key={plate.id ?? `plate-${plateIndex}`} style={styles.plateSection}>
+              <Text style={styles.plateLabel}>Plato {plateIndex + 1}</Text>
+              <View style={styles.itemsContainer}>
+                {plate.items.map((item, itemIndex) => (
+                  <Text
+                    key={item.id ?? `${item.name}-${itemIndex}`}
+                    style={styles.itemText}>
+                    {item.quantity}x {item.name}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        // Fallback for orders with no plates (shouldn't happen, but safety net)
+        <View style={styles.itemsContainer}>
+          {order.items.map((item, index) => (
+            <Text key={item.id ?? `${item.name}-${index}`} style={styles.itemText}>
+              {item.quantity}x {item.name}
+            </Text>
+          ))}
+        </View>
+      )}
 
       {footer ? <View style={styles.footer}>{footer}</View> : null}
     </View>
@@ -78,6 +100,21 @@ const styles = StyleSheet.create({
   itemText: {
     color: theme.colors.textPrimary,
     fontSize: 15,
+  },
+  plateLabel: {
+    color: theme.colors.accent,
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  platesContainer: {
+    gap: theme.spacing.md,
+  },
+  plateSection: {
+    backgroundColor: theme.colors.muted,
+    borderRadius: theme.radius.md,
+    gap: theme.spacing.xs,
+    padding: theme.spacing.sm,
   },
   statusPill: {
     borderRadius: theme.radius.sm,

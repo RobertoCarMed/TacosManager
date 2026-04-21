@@ -17,9 +17,16 @@ export type OrderItem = {
   quantity: number;
 };
 
+export type Plate = {
+  id: string;
+  items: OrderItem[];
+};
+
 export type Order = {
   id: string;
   table: string;
+  plates: Plate[];
+  /** @deprecated Flat accessor kept for backward compatibility — prefer `plates`. */
   items: OrderItem[];
   status: OrderStatus;
   createdAt: string | number;
@@ -27,5 +34,5 @@ export type Order = {
 
 export type CreateOrderPayload = {
   table: string;
-  items: OrderItem[];
+  plates: Plate[];
 };

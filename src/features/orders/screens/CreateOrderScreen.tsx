@@ -6,6 +6,7 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -17,7 +18,7 @@ import {AuthInput} from '../../auth/components/AuthInput';
 import {useAuth} from '../../auth/context/AuthContext';
 import {useProducts} from '../../products/hooks/useProducts';
 import {Product} from '../../products/types';
-import {ProductItem} from '../components/ProductItem';
+import {PlateCard} from '../components/PlateCard';
 import {useCreateOrder} from '../hooks/useCreateOrder';
 
 const productPlaceholder = require('../../../assets/images/product-placeholder.jpg');
@@ -31,18 +32,22 @@ export function CreateOrderScreen({navigation}: Props) {
     user?.taqueriaId,
   );
   const {
+    activePlateId,
+    addPlate,
     addProduct,
     canSave,
     decrementQuantity,
     error,
     incrementQuantity,
     isLoading,
-    items,
+    plates,
     quantity,
+    removePlate,
     removeProduct,
     saveOrder,
     selectProduct,
     selectedProduct,
+    setActivePlateId,
     setTable,
     table,
   } = useCreateOrder();
@@ -72,92 +77,106 @@ export function CreateOrderScreen({navigation}: Props) {
 
   return (
     <Screen contentStyle={styles.container}>
-      <Text style={styles.sectionTitle}>Mesa o cliente</Text>
-      <AuthInput
-        autoCapitalize="words"
-        keyboardType="default"
-        label="Mesa o cliente"
-        onChangeText={setTable}
-        placeholder="Ej. Mesa 12 o Cliente Juan"
-        value={table}
-      />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        {/* ── Table / customer ─────────────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Mesa o cliente</Text>
+        <AuthInput
+          autoCapitalize="words"
+          keyboardType="default"
+          label="Mesa o cliente"
+          onChangeText={setTable}
+          placeholder="Ej. Mesa 12 o Cliente Juan"
+          value={table}
+        />
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Agregar producto</Text>
-
-        <Text style={styles.fieldLabel}>Producto</Text>
-        <Pressable
-          onPress={() => setSelectorVisible(true)}
-          style={({pressed}) => [
-            styles.selector,
-            {opacity: pressed ? 0.85 : 1},
-          ]}>
-          <Text
-            style={[
-              styles.selectorText,
-              !selectedProduct ? styles.selectorPlaceholder : null,
-            ]}>
-            {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
-          </Text>
-        </Pressable>
-
-        <View style={styles.productControlRow}>
-          <Image source={selectedImageSource} style={styles.productImage} />
-          <View style={styles.quantityControl}>
+        {/* ── Plates list ──────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Platos</Text>
             <AppButton
-              label="-"
-              onPress={decrementQuantity}
-              style={styles.quantityButton}
+              label="+ Agregar plato"
+              onPress={addPlate}
+              style={styles.addPlateButton}
               variant="secondary"
             />
-            <Text style={styles.quantityValue}>{quantity}</Text>
-            <AppButton label="+" onPress={incrementQuantity} style={styles.quantityButton} />
           </View>
+
+          {plates.map((plate, plateIndex) => (
+            <PlateCard
+              key={plate.id}
+              index={plateIndex}
+              isActive={plate.id === activePlateId}
+              items={plate.items}
+              onPress={() => setActivePlateId(plate.id)}
+              onRemove={() => removePlate(plate.id)}
+              onRemoveItem={(itemIndex) => removeProduct(plate.id, itemIndex)}
+              showRemove={plates.length > 1}
+            />
+          ))}
         </View>
 
-        {productsError ? <Text style={styles.error}>{productsError}</Text> : null}
+        {/* ── Add product to active plate ──────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Agregar producto al plato{' '}
+            {plates.findIndex(p => p.id === activePlateId) + 1}
+          </Text>
+
+          <Text style={styles.fieldLabel}>Producto</Text>
+          <Pressable
+            onPress={() => setSelectorVisible(true)}
+            style={({pressed}) => [
+              styles.selector,
+              {opacity: pressed ? 0.85 : 1},
+            ]}>
+            <Text
+              style={[
+                styles.selectorText,
+                !selectedProduct ? styles.selectorPlaceholder : null,
+              ]}>
+              {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
+            </Text>
+          </Pressable>
+
+          <View style={styles.productControlRow}>
+            <Image source={selectedImageSource} style={styles.productImage} />
+            <View style={styles.quantityControl}>
+              <AppButton
+                label="-"
+                onPress={decrementQuantity}
+                style={styles.quantityButton}
+                variant="secondary"
+              />
+              <Text style={styles.quantityValue}>{quantity}</Text>
+              <AppButton label="+" onPress={incrementQuantity} style={styles.quantityButton} />
+            </View>
+          </View>
+
+          {productsError ? <Text style={styles.error}>{productsError}</Text> : null}
+
+          <AppButton
+            disabled={!canAddProduct}
+            label="Agregar producto"
+            onPress={addProduct}
+            variant="secondary"
+          />
+        </View>
+
+        {/* ── Error / Save ─────────────────────────────────────────── */}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <AppButton
-          disabled={!canAddProduct}
-          label="Agregar producto"
-          onPress={addProduct}
-          variant="secondary"
+          disabled={!canSave}
+          label="Guardar pedido"
+          loading={isLoading}
+          onPress={handleSave}
         />
-      </View>
+      </ScrollView>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Productos agregados</Text>
-        <FlatList
-          contentContainerStyle={styles.list}
-          data={items}
-          keyExtractor={(item, index) => `${item.name}-${index}`}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Sin productos por ahora</Text>
-              <Text style={styles.emptySubtitle}>
-                Agrega productos para construir el pedido.
-              </Text>
-            </View>
-          }
-          renderItem={({index, item}) => (
-            <ProductItem
-              name={item.name}
-              onRemove={() => removeProduct(index)}
-              quantity={item.quantity}
-            />
-          )}
-        />
-      </View>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <AppButton
-        disabled={!canSave}
-        label="Guardar pedido"
-        loading={isLoading}
-        onPress={handleSave}
-      />
-
+      {/* ── Product selector modal ───────────────────────────────── */}
       <Modal
         animationType="fade"
         onRequestClose={() => setSelectorVisible(false)}
@@ -196,27 +215,12 @@ export function CreateOrderScreen({navigation}: Props) {
 }
 
 const styles = StyleSheet.create({
+  addPlateButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+  },
   container: {
-    gap: theme.spacing.md,
-  },
-  emptyState: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    padding: theme.spacing.md,
-  },
-  emptySubtitle: {
-    color: theme.colors.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
+    flex: 1,
   },
   error: {
     color: theme.colors.danger,
@@ -226,10 +230,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 14,
     fontWeight: '700',
-  },
-  list: {
-    gap: theme.spacing.sm,
-    paddingBottom: theme.spacing.sm,
   },
   modalCard: {
     backgroundColor: theme.colors.surface,
@@ -308,8 +308,18 @@ const styles = StyleSheet.create({
     minWidth: 24,
     textAlign: 'center',
   },
+  scrollContent: {
+    gap: theme.spacing.md,
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
   section: {
     gap: theme.spacing.sm,
+  },
+  sectionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   sectionTitle: {
     color: theme.colors.textPrimary,

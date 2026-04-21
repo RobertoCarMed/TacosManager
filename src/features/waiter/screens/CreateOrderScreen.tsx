@@ -37,13 +37,13 @@ export function CreateOrderScreen({navigation}: Props) {
     try {
       setLocalError(null);
       await createOrder({
-        items,
+        plates: [{id: `plate-quick-${Date.now()}`, items}],
         table: table.trim(),
       });
-      Alert.alert('Pedido creado', 'La cocina verá el pedido en tiempo real.');
+      Alert.alert('Pedido creado', 'La cocina vera el pedido en tiempo real.');
       navigation.goBack();
-    } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'No se pudo crear el pedido.');
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
     }
   };
 

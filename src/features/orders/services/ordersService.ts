@@ -1,11 +1,20 @@
 import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
 import {firestoreDb} from '../../../services/firebase/config';
-import {CreateOrderPayload, Order, OrderStatus} from '../../../shared/types';
+import {CreateOrderPayload, Order, OrderItem, OrderStatus, Plate} from '../../../shared/types';
 
 function getOrdersCollection(taqueriaId: string) {
   return firestoreDb.collection('taquerias').doc(taqueriaId).collection('orders');
 }
 
+/**
+ * Normalises a raw Firestore document into the `plates` model.
+ *
+ * Backward compatibility:
+ *   – If the document already has a `plates` array it is used directly.
+ *   – If it only has the legacy `items` array the items are wrapped in a
+ *     single virtual plate so the rest of the app can treat every order
+ *     the same way.
+ */
 function mapOrder(
   rawOrder: FirebaseFirestoreTypes.DocumentData,
   id: string,
@@ -23,10 +32,32 @@ function mapOrder(
         ? createdAtValue
         : createdAtValue?.toDate?.().getTime() ?? Date.now();
 
+  // --- plates normalisation ---------------------------------------------------
+  let plates: Plate[];
+
+  if (Array.isArray(rawOrder.plates) && rawOrder.plates.length > 0) {
+    plates = (rawOrder.plates as Plate[]).map((plate, index) => ({
+      id: plate.id ?? `plate-${index}`,
+      items: Array.isArray(plate.items) ? plate.items : [],
+    }));
+  } else {
+    // Legacy document: wrap flat `items` into a single plate
+    const legacyItems: OrderItem[] = Array.isArray(rawOrder.items)
+      ? (rawOrder.items as OrderItem[])
+      : [];
+    plates = legacyItems.length > 0
+      ? [{id: 'plate-legacy', items: legacyItems}]
+      : [];
+  }
+
+  // Flatten all plate items for the backward-compat `items` accessor
+  const items = plates.flatMap(plate => plate.items);
+
   return {
     createdAt,
     id,
-    items: Array.isArray(rawOrder.items) ? (rawOrder.items as Order['items']) : [],
+    items,
+    plates,
     status: (rawOrder.status as OrderStatus) ?? 'pending',
     table: String(rawOrder.table ?? ''),
   };
@@ -36,10 +67,20 @@ export const ordersService = {
   async createOrder(taqueriaId: string, payload: CreateOrderPayload) {
     await getOrdersCollection(taqueriaId).add({
       createdAt: Date.now(),
-      items: payload.items.map(item => ({
-        name: item.name.trim(),
-        quantity: item.quantity,
+      plates: payload.plates.map(plate => ({
+        id: plate.id,
+        items: plate.items.map(item => ({
+          name: item.name.trim(),
+          quantity: item.quantity,
+        })),
       })),
+      // Legacy flat items kept for any external consumer that reads `items`
+      items: payload.plates.flatMap(plate =>
+        plate.items.map(item => ({
+          name: item.name.trim(),
+          quantity: item.quantity,
+        })),
+      ),
       status: 'pending',
       table: payload.table.trim(),
     });
