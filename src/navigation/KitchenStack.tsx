@@ -18,7 +18,7 @@ export function KitchenStack() {
       <Stack.Screen
         name="KitchenDashboard"
         component={KitchenScreen}
-        options={{title: 'Cocina'}}
+        options={{headerShown: false}}
       />
       <Stack.Screen
         name="CreateProduct"

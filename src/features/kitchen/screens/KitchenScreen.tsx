@@ -1,24 +1,155 @@
-import React from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  FlatList,
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  UIManager,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import {KitchenStackParamList} from '../../../navigation/types';
-import {AppButton, OrderCard, Screen} from '../../../shared/components';
+import {Screen} from '../../../shared/components';
 import {theme} from '../../../shared/constants';
+import {Order} from '../../../shared/types';
 import {useAuth} from '../../auth';
+import {OrderCard} from '../components/OrderCard';
 import {useOrders} from '../../orders';
 
 type Props = NativeStackScreenProps<KitchenStackParamList, 'KitchenDashboard'>;
+type GridPlaceholder = {id: string; isPlaceholder: true};
+
+const statusPriority: Record<Order['status'], number> = {
+  pending: 1,
+  preparing: 2,
+  ready: 3,
+  completed: 4,
+};
+
+const layoutReflowAnimation = {
+  create: {
+    duration: 280,
+    property: LayoutAnimation.Properties.opacity,
+    type: LayoutAnimation.Types.easeInEaseOut,
+  },
+  delete: {
+    duration: 280,
+    property: LayoutAnimation.Properties.opacity,
+    type: LayoutAnimation.Types.easeInEaseOut,
+  },
+  duration: 280,
+  update: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+  },
+};
+
+function toTimestamp(value: string | number) {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 export function KitchenScreen({navigation}: Props) {
   const {error, orders, updateOrderStatus} = useOrders();
   const {user} = useAuth();
+  const {height, width} = useWindowDimensions();
+  const [animatedOrders, setAnimatedOrders] = useState(orders);
+  const hasSyncedInitialOrders = useRef(false);
+  const isTabletLandscape = width >= 768 && width >= height;
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!hasSyncedInitialOrders.current) {
+      hasSyncedInitialOrders.current = true;
+      setAnimatedOrders(orders);
+      return;
+    }
+
+    LayoutAnimation.configureNext(layoutReflowAnimation);
+    setAnimatedOrders(orders);
+  }, [orders]);
+
+  const numColumns = useMemo(() => {
+    if (width >= 1500) {
+      return 4;
+    }
+    if (width >= 1100) {
+      return 3;
+    }
+    if (width >= 768) {
+      return 2;
+    }
+    return 1;
+  }, [width]);
+
+  const activeOrders = useMemo(() => {
+    return animatedOrders
+      .filter(order => order.status !== 'completed')
+      .map((order, index) => ({index, order}))
+      .sort((a, b) => {
+        const statusDiff = statusPriority[a.order.status] - statusPriority[b.order.status];
+        if (statusDiff !== 0) {
+          return statusDiff;
+        }
+
+        const createdAtDiff = toTimestamp(a.order.createdAt) - toTimestamp(b.order.createdAt);
+        if (createdAtDiff !== 0) {
+          return createdAtDiff;
+        }
+
+        return a.index - b.index;
+      })
+      .map(entry => entry.order);
+  }, [animatedOrders]);
+
+  const handleAdvanceStatus = useCallback(
+    async (orderId: string, status: Order['status']) => {
+      LayoutAnimation.configureNext(layoutReflowAnimation);
+      await updateOrderStatus(orderId, status);
+    },
+    [updateOrderStatus],
+  );
+
+  const gridData = useMemo((): Array<Order | GridPlaceholder> => {
+    if (numColumns === 1) {
+      return activeOrders;
+    }
+
+    const remainder = activeOrders.length % numColumns;
+    if (remainder === 0) {
+      return activeOrders;
+    }
+
+    return [
+      ...activeOrders,
+      ...Array.from({length: numColumns - remainder}, (_, index) => ({
+        id: `grid-spacer-${index}`,
+        isPlaceholder: true as const,
+      })),
+    ];
+  }, [activeOrders, numColumns]);
 
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Panel de cocina</Text>
-          <Text style={styles.subtitle}>Pedidos en vivo para {user?.taqueriaId}</Text>
+          <Text style={styles.subtitle}>
+            {isTabletLandscape
+              ? `Vista KDS en vivo - ${user?.taqueriaId}`
+              : 'Gira la tablet para una mejor visualizacion KDS'}
+          </Text>
         </View>
         <Pressable
           accessibilityLabel="Configuracion"
@@ -31,8 +162,10 @@ export function KitchenScreen({navigation}: Props) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <FlatList
+        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
         contentContainerStyle={styles.list}
-        data={orders.filter(order => order.status !== 'completed')}
+        data={gridData}
+        key={`kitchen-grid-${numColumns}`}
         keyExtractor={item => item.id}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -40,30 +173,16 @@ export function KitchenScreen({navigation}: Props) {
             <Text style={styles.emptySubtitle}>Los nuevos pedidos apareceran automaticamente.</Text>
           </View>
         }
-        renderItem={({item}) => (
-          <OrderCard
-            footer={
-              item.status === 'pending' ? (
-                <AppButton
-                  label="Marcar preparando"
-                  onPress={() => updateOrderStatus(item.id, 'preparing')}
-                />
-              ) : item.status === 'preparing' ? (
-                <AppButton
-                  label="Marcar listo"
-                  onPress={() => updateOrderStatus(item.id, 'ready')}
-                />
-              ) : (
-                <AppButton
-                  label="Entregado"
-                  onPress={() => updateOrderStatus(item.id, 'completed')}
-                  variant="secondary"
-                />
-              )
-            }
-            order={item}
-          />
-        )}
+        numColumns={numColumns}
+        renderItem={({item}) =>
+          'isPlaceholder' in item ? (
+            <View style={styles.placeholderCard} />
+          ) : (
+            <View style={styles.cardWrapper}>
+              <OrderCard order={item} onAdvanceStatus={handleAdvanceStatus} />
+            </View>
+          )
+        }
       />
     </Screen>
   );
@@ -71,7 +190,7 @@ export function KitchenScreen({navigation}: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.lg,
   },
   emptyState: {
     alignItems: 'center',
@@ -79,22 +198,24 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    marginTop: theme.spacing.sm,
-    padding: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.xl,
   },
   emptySubtitle: {
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
   },
   emptyTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
   error: {
     color: theme.colors.danger,
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     alignItems: 'center',
@@ -103,7 +224,17 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl * 2,
+  },
+  cardWrapper: {
+    flex: 1,
+  },
+  placeholderCard: {
+    flex: 1,
+  },
+  row: {
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
   settingsButton: {
     alignItems: 'center',
@@ -117,17 +248,17 @@ const styles = StyleSheet.create({
   },
   settingsIcon: {
     color: theme.colors.textPrimary,
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: 24,
+    lineHeight: 26,
   },
   subtitle: {
     color: theme.colors.textSecondary,
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 16,
+    marginTop: 6,
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: '800',
   },
 });

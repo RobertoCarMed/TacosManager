@@ -20,7 +20,7 @@ export function KitchenDashboardScreen({navigation}: Props) {
           <Text style={styles.title}>Panel de cocina</Text>
           <Text style={styles.subtitle}>Pedidos en vivo para {user?.taqueriaId}</Text>
         </View>
-        <AppButton label="Salir" onPress={signOut} variant="secondary" />
+        <AppButton label="Salir" onPress={signOut} size="large" variant="secondary" />
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -37,21 +37,25 @@ export function KitchenDashboardScreen({navigation}: Props) {
         }
         renderItem={({item}) => (
           <OrderCard
+            variant="kitchen"
             footer={
               item.status === 'pending' ? (
                 <AppButton
                   label="Marcar preparando"
                   onPress={() => updateOrderStatus(item.id, 'preparing')}
+                  size="large"
                 />
               ) : item.status === 'preparing' ? (
                 <AppButton
                   label="Marcar listo"
                   onPress={() => updateOrderStatus(item.id, 'ready')}
+                  size="large"
                 />
               ) : (
                 <AppButton
                   label="Entregado"
                   onPress={() => updateOrderStatus(item.id, 'completed')}
+                  size="large"
                   variant="secondary"
                 />
               )
@@ -74,7 +78,7 @@ export function KitchenDashboardScreen({navigation}: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.lg,
   },
   emptyState: {
     alignItems: 'center',
@@ -82,22 +86,24 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    marginTop: theme.spacing.sm,
-    padding: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.xl,
   },
   emptySubtitle: {
     color: theme.colors.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
   },
   emptyTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
   error: {
     color: theme.colors.danger,
+    fontSize: 16,
+    fontWeight: '600',
   },
   fab: {
     alignItems: 'center',
@@ -123,17 +129,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   list: {
-    gap: theme.spacing.md,
-    paddingBottom: 100,
+    gap: theme.spacing.lg,
+    paddingBottom: 140,
   },
   subtitle: {
     color: theme.colors.textSecondary,
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 16,
+    marginTop: 6,
   },
   title: {
     color: theme.colors.textPrimary,
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: '800',
   },
 });
