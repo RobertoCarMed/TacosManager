@@ -1,10 +1,13 @@
 import storage from '@react-native-firebase/storage';
-import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
-import {firestoreDb} from '../../../services/firebase/config';
-import {CreateProductPayload, Product, UpdateProductPayload} from '../types';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { firestoreDb } from '../../../services/firebase/config';
+import { CreateProductPayload, Product, UpdateProductPayload } from '../types';
 
 function sanitizeFileName(name: string) {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
 }
 
 async function uploadProductImage(
@@ -25,7 +28,18 @@ function mapProduct(
   id: string,
   data: FirebaseFirestoreTypes.DocumentData,
 ): Product {
+  const complements = Array.isArray(data.complements)
+    ? data.complements
+        .filter(
+          (complement): complement is string => typeof complement === 'string',
+        )
+        .map(complement => complement.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+
   return {
+    complements,
     createdAt: Number(data.createdAt ?? Date.now()),
     id,
     imageUrl:
@@ -36,6 +50,13 @@ function mapProduct(
     price: Number(data.price ?? 0),
     taqueriaId: String(data.taqueriaId ?? ''),
   };
+}
+
+function sanitizeComplements(complements: string[]) {
+  return complements
+    .map(complement => complement.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 export const productService = {
@@ -62,6 +83,7 @@ export const productService = {
     }
 
     const baseProduct = {
+      complements: sanitizeComplements(payload.complements),
       createdAt: Date.now(),
       id: productsReference.id,
       name: payload.name.trim(),
@@ -70,7 +92,7 @@ export const productService = {
     };
 
     const product: Product = imageUrl
-      ? {...baseProduct, imageUrl}
+      ? { ...baseProduct, imageUrl }
       : baseProduct;
 
     await productsReference.set(product);
@@ -139,6 +161,9 @@ export const productService = {
       throw new Error('No se encontro el producto actualizado.');
     }
 
-    return mapProduct(updatedDoc.id, updatedDoc.data() as FirebaseFirestoreTypes.DocumentData);
+    return mapProduct(
+      updatedDoc.id,
+      updatedDoc.data() as FirebaseFirestoreTypes.DocumentData,
+    );
   },
 };

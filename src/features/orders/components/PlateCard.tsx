@@ -1,11 +1,14 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {AppButton} from '../../../shared/components';
-import {theme} from '../../../shared/constants';
-import {ProductItem} from './ProductItem';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppButton } from '../../../shared/components';
+import { theme } from '../../../shared/constants';
+import { ProductItem } from './ProductItem';
 
 type PlateItem = {
+  availableComplements?: string[];
+  complements?: string[];
   name: string;
+  price?: number;
   quantity: number;
 };
 
@@ -31,11 +34,12 @@ export function PlateCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({pressed}) => [
+      style={({ pressed }) => [
         styles.card,
         isActive && styles.cardActive,
-        {opacity: pressed ? 0.92 : 1},
-      ]}>
+        { opacity: pressed ? 0.92 : 1 },
+      ]}
+    >
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.plateLabel}>Plato {index + 1}</Text>
@@ -65,9 +69,12 @@ export function PlateCard({
         <View style={styles.itemsList}>
           {items.map((item, itemIndex) => (
             <ProductItem
+              availableComplements={item.availableComplements}
+              complements={item.complements}
               key={`${item.name}-${itemIndex}`}
               name={item.name}
               onRemove={() => onRemoveItem(itemIndex)}
+              price={item.price}
               quantity={item.quantity}
             />
           ))}

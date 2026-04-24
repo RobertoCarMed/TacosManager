@@ -1,5 +1,5 @@
-import React, {useMemo, useState} from 'react';
-import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import React, { useMemo, useState } from 'react';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   Alert,
   FlatList,
@@ -11,26 +11,28 @@ import {
   Text,
   View,
 } from 'react-native';
-import {WaiterStackParamList} from '../../../navigation/types';
-import {AppButton, Screen} from '../../../shared/components';
-import {theme} from '../../../shared/constants';
-import {AuthInput} from '../../auth/components/AuthInput';
-import {useAuth} from '../../auth/context/AuthContext';
-import {useProducts} from '../../products/hooks/useProducts';
-import {Product} from '../../products/types';
-import {PlateCard} from '../components/PlateCard';
-import {useCreateOrder} from '../hooks/useCreateOrder';
+import { WaiterStackParamList } from '../../../navigation/types';
+import { AppButton, Screen } from '../../../shared/components';
+import { theme } from '../../../shared/constants';
+import { AuthInput } from '../../auth/components/AuthInput';
+import { useAuth } from '../../auth/context/AuthContext';
+import { useProducts } from '../../products/hooks/useProducts';
+import { Product } from '../../products/types';
+import { PlateCard } from '../components/PlateCard';
+import { useCreateOrder } from '../hooks/useCreateOrder';
 
 const productPlaceholder = require('../../../assets/images/product-placeholder.jpg');
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'CreateOrder'>;
 
-export function CreateOrderScreen({navigation}: Props) {
+export function CreateOrderScreen({ navigation }: Props) {
   const [selectorVisible, setSelectorVisible] = useState(false);
-  const {user} = useAuth();
-  const {error: productsError, isLoading: isProductsLoading, products} = useProducts(
-    user?.taqueriaId,
-  );
+  const { user } = useAuth();
+  const {
+    error: productsError,
+    isLoading: isProductsLoading,
+    products,
+  } = useProducts(user?.taqueriaId);
   const {
     activePlateId,
     addPlate,
@@ -46,10 +48,12 @@ export function CreateOrderScreen({navigation}: Props) {
     removeProduct,
     saveOrder,
     selectProduct,
+    selectedComplements,
     selectedProduct,
     setActivePlateId,
     setTable,
     table,
+    toggleComplement,
   } = useCreateOrder();
 
   const canAddProduct = useMemo(
@@ -61,7 +65,10 @@ export function CreateOrderScreen({navigation}: Props) {
     const wasSaved = await saveOrder();
 
     if (wasSaved) {
-      Alert.alert('Pedido guardado', 'El pedido se envio correctamente a cocina.');
+      Alert.alert(
+        'Pedido guardado',
+        'El pedido se envio correctamente a cocina.',
+      );
       navigation.goBack();
     }
   };
@@ -72,7 +79,7 @@ export function CreateOrderScreen({navigation}: Props) {
   };
 
   const selectedImageSource = selectedProduct?.imageUrl
-    ? {uri: selectedProduct.imageUrl}
+    ? { uri: selectedProduct.imageUrl }
     : productPlaceholder;
 
   return (
@@ -80,7 +87,8 @@ export function CreateOrderScreen({navigation}: Props) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Table / customer ─────────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Mesa o cliente</Text>
         <AuthInput
@@ -112,7 +120,7 @@ export function CreateOrderScreen({navigation}: Props) {
               items={plate.items}
               onPress={() => setActivePlateId(plate.id)}
               onRemove={() => removePlate(plate.id)}
-              onRemoveItem={(itemIndex) => removeProduct(plate.id, itemIndex)}
+              onRemoveItem={itemIndex => removeProduct(plate.id, itemIndex)}
               showRemove={plates.length > 1}
             />
           ))}
@@ -128,18 +136,57 @@ export function CreateOrderScreen({navigation}: Props) {
           <Text style={styles.fieldLabel}>Producto</Text>
           <Pressable
             onPress={() => setSelectorVisible(true)}
-            style={({pressed}) => [
+            style={({ pressed }) => [
               styles.selector,
-              {opacity: pressed ? 0.85 : 1},
-            ]}>
+              { opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
             <Text
               style={[
                 styles.selectorText,
                 !selectedProduct ? styles.selectorPlaceholder : null,
-              ]}>
-              {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
+              ]}
+            >
+              {selectedProduct
+                ? selectedProduct.name
+                : 'Selecciona un producto'}
             </Text>
           </Pressable>
+
+          {selectedProduct?.complements?.length ? (
+            <View style={styles.complementsSection}>
+              <Text style={styles.fieldLabel}>Complementos</Text>
+              <View style={styles.complementsList}>
+                {selectedProduct.complements.map(complement => {
+                  const isSelected = selectedComplements.includes(complement);
+                  return (
+                    <Pressable
+                      key={complement}
+                      onPress={() => toggleComplement(complement)}
+                      style={({ pressed }) => [
+                        styles.complementColumnItem,
+                        styles.complementOption,
+                        isSelected ? styles.complementOptionSelected : null,
+                        { opacity: pressed ? 0.85 : 1 },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.checkbox,
+                          isSelected ? styles.checkboxSelected : null,
+                        ]}
+                      >
+                        {isSelected ? (
+                          <Text style={styles.checkboxIcon}>✓</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.complementText}>{complement}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.productControlRow}>
             <Image source={selectedImageSource} style={styles.productImage} />
@@ -151,11 +198,17 @@ export function CreateOrderScreen({navigation}: Props) {
                 variant="secondary"
               />
               <Text style={styles.quantityValue}>{quantity}</Text>
-              <AppButton label="+" onPress={incrementQuantity} style={styles.quantityButton} />
+              <AppButton
+                label="+"
+                onPress={incrementQuantity}
+                style={styles.quantityButton}
+              />
             </View>
           </View>
 
-          {productsError ? <Text style={styles.error}>{productsError}</Text> : null}
+          {productsError ? (
+            <Text style={styles.error}>{productsError}</Text>
+          ) : null}
 
           <AppButton
             disabled={!canAddProduct}
@@ -181,28 +234,37 @@ export function CreateOrderScreen({navigation}: Props) {
         animationType="fade"
         onRequestClose={() => setSelectorVisible(false)}
         transparent
-        visible={selectorVisible}>
+        visible={selectorVisible}
+      >
         <View style={styles.modalOverlay}>
-          <Pressable onPress={() => setSelectorVisible(false)} style={styles.modalBackdrop} />
+          <Pressable
+            onPress={() => setSelectorVisible(false)}
+            style={styles.modalBackdrop}
+          />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Selecciona un producto</Text>
             {isProductsLoading ? (
               <Text style={styles.modalStateText}>Cargando productos...</Text>
             ) : products.length === 0 ? (
-              <Text style={styles.modalStateText}>No hay productos disponibles.</Text>
+              <Text style={styles.modalStateText}>
+                No hay productos disponibles.
+              </Text>
             ) : (
               <FlatList
                 data={products}
                 keyExtractor={item => item.id}
-                renderItem={({item}) => (
+                renderItem={({ item }) => (
                   <Pressable
                     onPress={() => handleSelectProduct(item)}
-                    style={({pressed}) => [
+                    style={({ pressed }) => [
                       styles.productOption,
-                      {opacity: pressed ? 0.8 : 1},
-                    ]}>
+                      { opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
                     <Text style={styles.productOptionName}>{item.name}</Text>
-                    <Text style={styles.productOptionPrice}>${item.price.toFixed(2)}</Text>
+                    <Text style={styles.productOptionPrice}>
+                      ${item.price.toFixed(2)}
+                    </Text>
                   </Pressable>
                 )}
               />
@@ -218,6 +280,57 @@ const styles = StyleSheet.create({
   addPlateButton: {
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 6,
+  },
+  checkbox: {
+    alignItems: 'center',
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+    borderWidth: 2,
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  checkboxIcon: {
+    color: theme.colors.surface,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  checkboxSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  complementOption: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    minHeight: 52,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  complementOptionSelected: {
+    backgroundColor: `${theme.colors.primary}15`,
+    borderColor: theme.colors.primary,
+  },
+  complementText: {
+    color: theme.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  complementsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  complementsSection: {
+    gap: theme.spacing.sm,
+  },
+  complementColumnItem: {
+    width: '48%',
   },
   container: {
     flex: 1,

@@ -12,8 +12,11 @@ export type AppUser = {
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
 
 export type OrderItem = {
+  availableComplements?: string[];
+  complements?: string[];
   id?: string;
   name: string;
+  price?: number;
   quantity: number;
 };
 

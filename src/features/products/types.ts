@@ -2,6 +2,7 @@ export type Product = {
   id: string;
   name: string;
   price: number;
+  complements: string[];
   imageUrl?: string;
   taqueriaId: string;
   createdAt: number;
@@ -10,6 +11,7 @@ export type Product = {
 export type CreateProductPayload = {
   name: string;
   price: number;
+  complements: string[];
   taqueriaId: string;
   imageUri?: string;
 };

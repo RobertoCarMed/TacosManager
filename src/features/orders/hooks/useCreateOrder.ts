@@ -1,10 +1,14 @@
-import {useCallback, useMemo, useState} from 'react';
-import {useAuth} from '../../auth';
-import {ordersService} from '../services/ordersService';
-import {Product} from '../../products/types';
+import { useCallback, useMemo, useState } from 'react';
+import { useAuth } from '../../auth';
+import { ordersService } from '../services/ordersService';
+import { Product } from '../../products/types';
 
 type NewOrderItem = {
+  availableComplements: string[];
+  complements: string[];
+  id?: string;
   name: string;
+  price: number;
   quantity: number;
 };
 
@@ -23,19 +27,20 @@ function generatePlateId(): string {
 export function useCreateOrder() {
   const [table, setTable] = useState('');
   const [plates, setPlates] = useState<NewPlate[]>([
-    {id: generatePlateId(), items: []},
+    { id: generatePlateId(), items: [] },
   ]);
   const [activePlateId, setActivePlateId] = useState<string>(plates[0].id);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedComplements, setSelectedComplements] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const {user} = useAuth();
+  const { user } = useAuth();
 
   // ── Plate management ────────────────────────────────────────────────
 
   const addPlate = useCallback(() => {
-    const newPlate: NewPlate = {id: generatePlateId(), items: []};
+    const newPlate: NewPlate = { id: generatePlateId(), items: [] };
     setPlates(current => [...current, newPlate]);
     setActivePlateId(newPlate.id);
     setError(null);
@@ -47,7 +52,7 @@ export function useCreateOrder() {
         const next = current.filter(p => p.id !== plateId);
         // Always keep at least one plate
         if (next.length === 0) {
-          const fallback: NewPlate = {id: generatePlateId(), items: []};
+          const fallback: NewPlate = { id: generatePlateId(), items: [] };
           setActivePlateId(fallback.id);
           return [fallback];
         }
@@ -74,8 +79,17 @@ export function useCreateOrder() {
 
   const selectProduct = useCallback((product: Product | null) => {
     setSelectedProduct(product);
+    setSelectedComplements([]);
     setQuantity(product ? 1 : 0);
     setError(null);
+  }, []);
+
+  const toggleComplement = useCallback((complement: string) => {
+    setSelectedComplements(current =>
+      current.includes(complement)
+        ? current.filter(item => item !== complement)
+        : [...current, complement],
+    );
   }, []);
 
   // ── Add / Remove items inside a plate ───────────────────────────────
@@ -99,29 +113,34 @@ export function useCreateOrder() {
               ...plate,
               items: [
                 ...plate.items,
-                {name: selectedProduct.name, quantity},
+                {
+                  availableComplements: selectedProduct.complements.slice(0, 3),
+                  complements: selectedComplements,
+                  id: selectedProduct.id,
+                  name: selectedProduct.name,
+                  price: selectedProduct.price,
+                  quantity,
+                },
               ],
             }
           : plate,
       ),
     );
     setSelectedProduct(null);
+    setSelectedComplements([]);
     setQuantity(0);
     return true;
-  }, [activePlateId, quantity, selectedProduct]);
+  }, [activePlateId, quantity, selectedComplements, selectedProduct]);
 
-  const removeProduct = useCallback(
-    (plateId: string, itemIndex: number) => {
-      setPlates(current =>
-        current.map(plate =>
-          plate.id === plateId
-            ? {...plate, items: plate.items.filter((_, i) => i !== itemIndex)}
-            : plate,
-        ),
-      );
-    },
-    [],
-  );
+  const removeProduct = useCallback((plateId: string, itemIndex: number) => {
+    setPlates(current =>
+      current.map(plate =>
+        plate.id === plateId
+          ? { ...plate, items: plate.items.filter((_, i) => i !== itemIndex) }
+          : plate,
+      ),
+    );
+  }, []);
 
   // ── Save ────────────────────────────────────────────────────────────
 
@@ -153,17 +172,20 @@ export function useCreateOrder() {
       });
 
       // Reset state
-      const freshPlate: NewPlate = {id: generatePlateId(), items: []};
+      const freshPlate: NewPlate = { id: generatePlateId(), items: [] };
       setTable('');
       setPlates([freshPlate]);
       setActivePlateId(freshPlate.id);
       setSelectedProduct(null);
+      setSelectedComplements([]);
       setQuantity(0);
 
       return true;
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : 'No se pudo guardar el pedido.',
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo guardar el pedido.',
       );
       return false;
     } finally {
@@ -194,9 +216,11 @@ export function useCreateOrder() {
     removeProduct,
     saveOrder,
     selectProduct,
+    selectedComplements,
     selectedProduct,
     setActivePlateId,
     setTable,
     table,
+    toggleComplement,
   };
 }

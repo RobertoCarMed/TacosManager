@@ -1,7 +1,9 @@
-import {useCallback, useMemo, useState} from 'react';
-import {launchImageLibrary} from 'react-native-image-picker';
-import {useAuth} from '../../auth';
-import {productService} from '../services/productService';
+import { useCallback, useMemo, useState } from 'react';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { useAuth } from '../../auth';
+import { productService } from '../services/productService';
+
+const MAX_COMPLEMENTS = 3;
 
 function isValidPrice(value: string) {
   const parsedPrice = Number(value);
@@ -11,10 +13,11 @@ function isValidPrice(value: string) {
 export function useCreateProduct() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [complements, setComplements] = useState<string[]>(['']);
   const [imageUri, setImageUri] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {user} = useAuth();
+  const { user } = useAuth();
 
   const pickImage = useCallback(async () => {
     try {
@@ -38,12 +41,44 @@ export function useCreateProduct() {
       setError(null);
       setImageUri(selectedAsset.uri);
     } catch (pickError) {
-      setError(pickError instanceof Error ? pickError.message : 'No se pudo abrir la galeria.');
+      setError(
+        pickError instanceof Error
+          ? pickError.message
+          : 'No se pudo abrir la galeria.',
+      );
     }
   }, []);
 
   const removeImage = useCallback(() => {
     setImageUri(undefined);
+  }, []);
+
+  const addComplement = useCallback(() => {
+    setComplements(currentComplements =>
+      currentComplements.length >= MAX_COMPLEMENTS
+        ? currentComplements
+        : [...currentComplements, ''],
+    );
+  }, []);
+
+  const removeComplement = useCallback((index: number) => {
+    setComplements(currentComplements => {
+      if (currentComplements.length === 1) {
+        return [''];
+      }
+
+      return currentComplements.filter(
+        (_, complementIndex) => complementIndex !== index,
+      );
+    });
+  }, []);
+
+  const updateComplement = useCallback((index: number, value: string) => {
+    setComplements(currentComplements =>
+      currentComplements.map((complement, complementIndex) =>
+        complementIndex === index ? value : complement,
+      ),
+    );
   }, []);
 
   const saveProduct = useCallback(async () => {
@@ -71,8 +106,14 @@ export function useCreateProduct() {
       setError(null);
       setIsLoading(true);
 
+      const cleanComplements = complements
+        .map(complement => complement.trim())
+        .filter(Boolean)
+        .slice(0, MAX_COMPLEMENTS);
+
       await productService.createProduct({
-        ...(imageUri ? {imageUri} : {}),
+        complements: cleanComplements,
+        ...(imageUri ? { imageUri } : {}),
         name: name.trim(),
         price: Number(price),
         taqueriaId: user.taqueriaId,
@@ -80,15 +121,20 @@ export function useCreateProduct() {
 
       setName('');
       setPrice('');
+      setComplements(['']);
       setImageUri(undefined);
       return true;
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar el producto.');
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo guardar el producto.',
+      );
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [imageUri, name, price, user?.taqueriaId]);
+  }, [complements, imageUri, name, price, user?.taqueriaId]);
 
   const canSave = useMemo(
     () => Boolean(name.trim()) && isValidPrice(price) && !isLoading,
@@ -96,16 +142,20 @@ export function useCreateProduct() {
   );
 
   return {
+    addComplement,
     canSave,
+    complements,
     error,
     imageUri,
     isLoading,
     name,
     pickImage,
     price,
+    removeComplement,
     removeImage,
     saveProduct,
     setName,
     setPrice,
+    updateComplement,
   };
 }

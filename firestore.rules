@@ -107,6 +107,85 @@ service cloud.firestore {
         && request.resource.data.status in ['pending', 'preparing', 'ready', 'completed'];
     }
 
+    function isValidProductComplements() {
+      return !('complements' in request.resource.data)
+        || (
+          request.resource.data.complements is list
+          && request.resource.data.complements.size() <= 3
+          && (
+            request.resource.data.complements.size() < 1
+            || (
+              request.resource.data.complements[0] is string
+              && request.resource.data.complements[0].size() > 0
+            )
+          )
+          && (
+            request.resource.data.complements.size() < 2
+            || (
+              request.resource.data.complements[1] is string
+              && request.resource.data.complements[1].size() > 0
+            )
+          )
+          && (
+            request.resource.data.complements.size() < 3
+            || (
+              request.resource.data.complements[2] is string
+              && request.resource.data.complements[2].size() > 0
+            )
+          )
+        );
+    }
+
+    function hasValidProductImageUrl() {
+      return !('imageUrl' in request.resource.data)
+        || (
+          request.resource.data.imageUrl is string
+          && request.resource.data.imageUrl.size() > 0
+        );
+    }
+
+    function isValidProductCreate(productId, taqueriaId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'price',
+          'imageUrl',
+          'complements',
+          'taqueriaId',
+          'createdAt'
+        ])
+        && request.resource.data.id == productId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.price is number
+        && request.resource.data.price > 0
+        && request.resource.data.taqueriaId == taqueriaId
+        && request.resource.data.createdAt is number
+        && isValidProductComplements()
+        && hasValidProductImageUrl();
+    }
+
+    function isValidProductUpdate() {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'name',
+          'price',
+          'imageUrl',
+          'complements',
+          'taqueriaId',
+          'createdAt'
+        ])
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.taqueriaId == resource.data.taqueriaId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.price is number
+        && request.resource.data.price > 0
+        && isValidProductComplements()
+        && hasValidProductImageUrl();
+    }
+
     match /taquerias/{taqueriaId} {
       allow create: if isSignedIn() && isValidTaqueriaCreate();
       allow read: if true;
@@ -132,31 +211,11 @@ service cloud.firestore {
 
         allow create: if belongsToTaqueria(taqueriaId)
           && currentUser().role == 'cook'
-          && request.resource.data.keys().hasOnly([
-            'id',
-            'name',
-            'price',
-            'imageUrl',
-            'taqueriaId',
-            'createdAt'
-          ])
-          && request.resource.data.id == productId
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.price is number
-          && request.resource.data.price > 0
-          && request.resource.data.taqueriaId == taqueriaId
-          && request.resource.data.createdAt is number
-          && (
-            !('imageUrl' in request.resource.data)
-            || (request.resource.data.imageUrl is string
-              && request.resource.data.imageUrl.size() > 0)
-          );
+          && isValidProductCreate(productId, taqueriaId);
 
         allow update: if belongsToTaqueria(taqueriaId)
           && currentUser().role == 'cook'
-          && request.resource.data.id == resource.data.id
-          && request.resource.data.taqueriaId == resource.data.taqueriaId;
+          && isValidProductUpdate();
 
         allow delete: if belongsToTaqueria(taqueriaId)
           && currentUser().role == 'cook';

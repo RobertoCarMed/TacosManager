@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppButton, Screen } from '../../../shared/components';
 import { theme } from '../../../shared/constants';
 import { useNavigation } from '@react-navigation/native';
@@ -10,25 +10,34 @@ import { useCreateProduct } from '../hooks/useCreateProduct';
 
 export function CreateProductScreen() {
   const {
+    addComplement,
     canSave,
+    complements,
     error,
     imageUri,
     isLoading,
     name,
     pickImage,
     price,
+    removeComplement,
     removeImage,
     saveProduct,
     setName,
     setPrice,
+    updateComplement,
   } = useCreateProduct();
 
-  const navigation = useNavigation<NativeStackNavigationProp<KitchenStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<KitchenStackParamList>>();
+  const canAddComplement = complements.length < 3;
 
   const handleSaveProduct = async () => {
     const wasSaved = await saveProduct();
-    Alert.alert('Producto guardado', 'El producto se ha guardado correctamente');
     if (wasSaved) {
+      Alert.alert(
+        'Producto guardado',
+        'El producto se ha guardado correctamente',
+      );
       navigation.goBack();
     }
   };
@@ -38,7 +47,8 @@ export function CreateProductScreen() {
       <View style={styles.card}>
         <Text style={styles.title}>Nuevo producto</Text>
         <Text style={styles.subtitle}>
-          Crea un platillo para que el equipo lo pueda usar en la operacion diaria.
+          Crea un platillo para que el equipo lo pueda usar en la operacion
+          diaria.
         </Text>
 
         <AuthInput
@@ -64,14 +74,68 @@ export function CreateProductScreen() {
             <Image source={{ uri: imageUri }} style={styles.preview} />
           ) : (
             <View style={styles.emptyPreview}>
-              <Text style={styles.emptyPreviewText}>No hay imagen seleccionada</Text>
+              <Text style={styles.emptyPreviewText}>
+                No hay imagen seleccionada
+              </Text>
             </View>
           )}
 
           <View style={styles.imageActions}>
-            <AppButton label="Seleccionar imagen" onPress={pickImage} variant="secondary" />
-            {imageUri ? <AppButton label="Quitar" onPress={removeImage} variant="danger" /> : null}
+            <AppButton
+              label="Seleccionar imagen"
+              onPress={pickImage}
+              variant="secondary"
+            />
+            {imageUri ? (
+              <AppButton
+                label="Quitar"
+                onPress={removeImage}
+                variant="danger"
+              />
+            ) : null}
           </View>
+        </View>
+
+        <View style={styles.complementsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.label}>Complementos (opcional)</Text>
+            <Text style={styles.helperText}>
+              Agrega hasta 3 complementos que el cliente puede elegir
+            </Text>
+          </View>
+
+          <View style={styles.complementList}>
+            {complements.map((complement, index) => (
+              <View key={`complement-${index}`} style={styles.complementRow}>
+                <View style={styles.complementInputWrapper}>
+                  <AuthInput
+                    autoCapitalize="words"
+                    label={`Complemento ${index + 1}`}
+                    onChangeText={value => updateComplement(index, value)}
+                    placeholder="Ej. Cebolla"
+                    value={complement}
+                  />
+                </View>
+                <Pressable
+                  accessibilityLabel={`Eliminar complemento ${index + 1}`}
+                  onPress={() => removeComplement(index)}
+                  style={({ pressed }) => [
+                    styles.removeComplementButton,
+                    { opacity: pressed ? 0.75 : 1 },
+                  ]}
+                >
+                  <Text style={styles.removeComplementText}>Eliminar</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+
+          <AppButton
+            disabled={!canAddComplement}
+            label="+ Agregar complemento"
+            onPress={addComplement}
+            variant="secondary"
+          />
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -99,6 +163,20 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
   },
+  complementInputWrapper: {
+    flex: 1,
+  },
+  complementList: {
+    gap: theme.spacing.sm,
+  },
+  complementRow: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  complementsSection: {
+    gap: theme.spacing.sm,
+  },
   emptyPreview: {
     alignItems: 'center',
     backgroundColor: theme.colors.background,
@@ -122,10 +200,34 @@ const styles = StyleSheet.create({
   imageSection: {
     gap: theme.spacing.sm,
   },
+  helperText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   label: {
     color: theme.colors.textPrimary,
     fontSize: 14,
     fontWeight: '700',
+  },
+  removeComplementButton: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  removeComplementText: {
+    color: theme.colors.danger,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sectionHeader: {
+    gap: theme.spacing.xs,
   },
   preview: {
     borderRadius: theme.radius.md,

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+﻿import React, {useMemo} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
 import {WaiterStackParamList} from '../../../navigation/types';
@@ -6,12 +6,51 @@ import {AppButton, OrderCard, Screen} from '../../../shared/components';
 import {theme} from '../../../shared/constants';
 import {useAuth} from '../../auth';
 import {useOrders} from '../hooks/useOrders';
+import {useProducts} from '../../products/hooks/useProducts';
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'WaiterOrders'>;
 
 export function WaiterOrdersScreen({navigation}: Props) {
   const {error, orders} = useOrders();
   const {signOut, user} = useAuth();
+  const {products} = useProducts(user?.taqueriaId);
+
+  const ordersWithResolvedPrices = useMemo(() => {
+    const productPriceById = new Map(products.map(product => [product.id, product.price]));
+    const productPriceByName = new Map(
+      products.map(product => [product.name.trim().toLowerCase(), product.price]),
+    );
+
+    return orders.map(order => {
+      const nextPlates = order.plates.map(plate => ({
+        ...plate,
+        items: plate.items.map(item => {
+          const persistedPrice =
+            typeof item.price === 'number' && Number.isFinite(item.price)
+              ? item.price
+              : 0;
+
+          const resolvedPrice =
+            persistedPrice > 0
+              ? persistedPrice
+              : (item.id ? productPriceById.get(item.id) : undefined) ??
+                productPriceByName.get(item.name.trim().toLowerCase()) ??
+                0;
+
+          return {
+            ...item,
+            price: resolvedPrice,
+          };
+        }),
+      }));
+
+      return {
+        ...order,
+        items: nextPlates.flatMap(plate => plate.items),
+        plates: nextPlates,
+      };
+    });
+  }, [orders, products]);
 
   return (
     <Screen contentStyle={styles.container}>
@@ -27,7 +66,7 @@ export function WaiterOrdersScreen({navigation}: Props) {
 
       <FlatList
         contentContainerStyle={styles.list}
-        data={orders}
+        data={ordersWithResolvedPrices}
         keyExtractor={item => item.id}
         ListEmptyComponent={
           <View style={styles.emptyState}>

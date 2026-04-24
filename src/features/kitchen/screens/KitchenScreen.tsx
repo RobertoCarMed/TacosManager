@@ -80,18 +80,7 @@ export function KitchenScreen({navigation}: Props) {
     setAnimatedOrders(orders);
   }, [orders]);
 
-  const numColumns = useMemo(() => {
-    if (width >= 1500) {
-      return 4;
-    }
-    if (width >= 1100) {
-      return 3;
-    }
-    if (width >= 768) {
-      return 2;
-    }
-    return 1;
-  }, [width]);
+  const numColumns = 2;
 
   const activeOrders = useMemo(() => {
     return animatedOrders
@@ -122,10 +111,6 @@ export function KitchenScreen({navigation}: Props) {
   );
 
   const gridData = useMemo((): Array<Order | GridPlaceholder> => {
-    if (numColumns === 1) {
-      return activeOrders;
-    }
-
     const remainder = activeOrders.length % numColumns;
     if (remainder === 0) {
       return activeOrders;
@@ -162,10 +147,10 @@ export function KitchenScreen({navigation}: Props) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <FlatList
-        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
+        columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
         data={gridData}
-        key={`kitchen-grid-${numColumns}`}
+        key="kitchen-grid-2"
         keyExtractor={item => item.id}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -223,7 +208,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   list: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.lg,
     paddingBottom: theme.spacing.xl * 2,
   },
   cardWrapper: {
@@ -233,8 +218,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   row: {
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+    gap: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
   settingsButton: {
     alignItems: 'center',
