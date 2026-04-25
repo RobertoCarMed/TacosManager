@@ -9,12 +9,18 @@ export type AppUser = {
   businessAddress?: string;
 };
 
-export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
+export type OrderStatus =
+  | 'updated'
+  | 'pending'
+  | 'preparing'
+  | 'ready'
+  | 'completed';
 
 export type OrderItem = {
   availableComplements?: string[];
   complements?: string[];
   id?: string;
+  isNew?: boolean;
   name: string;
   price?: number;
   quantity: number;

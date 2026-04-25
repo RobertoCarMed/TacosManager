@@ -14,6 +14,7 @@ type KitchenOrderCardProps = {
 
 const statusLabels: Record<Order['status'], string> = {
   completed: 'COMPLETADO',
+  updated: 'ACTUALIZADA',
   pending: 'PENDIENTE',
   preparing: 'PREPARANDO',
   ready: 'LISTO',
@@ -21,6 +22,7 @@ const statusLabels: Record<Order['status'], string> = {
 
 const statusColors: Record<Order['status'], { bg: string; text: string }> = {
   completed: { bg: '#E8F5EC', text: theme.colors.success },
+  updated: { bg: '#E8F5E9', text: '#2E7D32' },
   pending: { bg: '#FFF4DE', text: theme.colors.warning },
   preparing: { bg: '#E9F2FF', text: '#1E5FAF' },
   ready: { bg: '#E8F5EC', text: theme.colors.success },
@@ -39,7 +41,7 @@ function getOrderTime(createdAt: string | number) {
 }
 
 function getActionForStatus(status: Order['status']) {
-  if (status === 'pending') {
+  if (status === 'pending' || status === 'updated') {
     return {
       label: 'Marcar preparando',
       nextStatus: 'preparing' as const,
@@ -124,7 +126,10 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
     const complementColumns = getComplementColumns(item);
 
     return (
-      <View key={itemKey} style={styles.itemRow}>
+      <View
+        key={itemKey}
+        style={[styles.itemRow, item.isNew ? styles.itemRowUpdated : null]}
+      >
         <Text style={styles.itemText}>
           <Text style={styles.quantityText}>{item.quantity}x </Text>
           {item.name}
@@ -281,7 +286,16 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
   },
   itemRow: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.sm,
     marginBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  itemRowUpdated: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#C8E6C9',
+    borderWidth: 1,
   },
   itemText: {
     color: theme.colors.textPrimary,

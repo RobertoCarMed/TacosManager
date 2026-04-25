@@ -1,4 +1,4 @@
-﻿import React, {useMemo} from 'react';
+﻿import React, {useMemo, useState} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
 import {WaiterStackParamList} from '../../../navigation/types';
@@ -11,6 +11,7 @@ import {useProducts} from '../../products/hooks/useProducts';
 type Props = NativeStackScreenProps<WaiterStackParamList, 'WaiterOrders'>;
 
 export function WaiterOrdersScreen({navigation}: Props) {
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const {error, orders} = useOrders();
   const {signOut, user} = useAuth();
   const {products} = useProducts(user?.taqueriaId);
@@ -76,7 +77,20 @@ export function WaiterOrdersScreen({navigation}: Props) {
             </Text>
           </View>
         }
-        renderItem={({item}) => <OrderCard order={item} />}
+        renderItem={({item}) => (
+          <OrderCard
+            onEditPress={() =>
+              navigation.navigate('EditOrder', {orderId: item.id})
+            }
+            onPress={() =>
+              setSelectedOrderId(current =>
+                current === item.id ? null : item.id,
+              )
+            }
+            order={item}
+            selected={selectedOrderId === item.id}
+          />
+        )}
       />
 
       <Pressable

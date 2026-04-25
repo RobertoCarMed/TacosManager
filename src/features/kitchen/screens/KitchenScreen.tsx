@@ -23,10 +23,11 @@ type Props = NativeStackScreenProps<KitchenStackParamList, 'KitchenDashboard'>;
 type GridPlaceholder = {id: string; isPlaceholder: true};
 
 const statusPriority: Record<Order['status'], number> = {
-  pending: 1,
-  preparing: 2,
-  ready: 3,
-  completed: 4,
+  updated: 1,
+  pending: 2,
+  preparing: 3,
+  ready: 4,
+  completed: 5,
 };
 
 const layoutReflowAnimation = {

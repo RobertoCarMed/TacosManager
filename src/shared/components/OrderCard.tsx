@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../constants';
 import { Order } from '../types';
 import { formatOrderTime } from '../utils';
@@ -7,11 +7,18 @@ import { formatOrderTime } from '../utils';
 type OrderCardProps = {
   order: Order;
   footer?: React.ReactNode;
+  onEditPress?: () => void;
+  onPress?: () => void;
+  /** Waiter: tap-to-select; shows highlight when true. */
+  selected?: boolean;
+  /** When true, existing items are view-only in flows that add products elsewhere (e.g. edit order). */
+  readOnly?: boolean;
   variant?: 'default' | 'kitchen';
 };
 
 const statusLabels: Record<Order['status'], string> = {
   completed: 'COMPLETADO',
+  updated: 'ACTUALIZADA',
   pending: 'PENDIENTE',
   preparing: 'PREPARANDO',
   ready: 'LISTO',
@@ -19,6 +26,7 @@ const statusLabels: Record<Order['status'], string> = {
 
 const statusColors: Record<Order['status'], string> = {
   completed: theme.colors.success,
+  updated: '#2E7D32',
   pending: theme.colors.warning,
   preparing: theme.colors.accent,
   ready: theme.colors.primary,
@@ -34,7 +42,11 @@ function formatCurrency(value: number) {
 
 export function OrderCard({
   footer,
+  onEditPress,
+  onPress,
   order,
+  readOnly = false,
+  selected = false,
   variant = 'default',
 }: OrderCardProps) {
   const hasPlates = order.plates && order.plates.length > 0;
@@ -47,13 +59,23 @@ export function OrderCard({
     0,
   );
 
-  return (
-    <View style={[styles.card, isKitchen ? styles.cardKitchen : null]}>
+  const isWaiter = !isKitchen;
+  const showReadOnlyLabel = isWaiter && readOnly;
+
+  const mainContent = (
+    <>
       <View style={styles.header}>
         <View>
-          <Text style={[styles.table, isKitchen ? styles.tableKitchen : null]}>
-            Mesa {order.table}
-          </Text>
+          <View style={styles.titleRowTable}>
+            <Text style={[styles.table, isKitchen ? styles.tableKitchen : null]}>
+              Mesa {order.table}
+            </Text>
+            {showReadOnlyLabel ? (
+              <View style={styles.readOnlyBadge}>
+                <Text style={styles.readOnlyBadgeText}>Solo lectura</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={[styles.time, isKitchen ? styles.timeKitchen : null]}>
             {formatOrderTime(order.createdAt)}
           </Text>
@@ -76,7 +98,6 @@ export function OrderCard({
           </Text>
         </View>
       </View>
-
       {hasPlates ? (
         <View
           style={[
@@ -143,7 +164,6 @@ export function OrderCard({
           ))}
         </View>
       ) : (
-        // Fallback for orders with no plates (shouldn't happen, but safety net)
         <View
           style={[
             styles.itemsContainer,
@@ -193,6 +213,38 @@ export function OrderCard({
       ) : null}
 
       {footer ? <View style={styles.footer}>{footer}</View> : null}
+    </>
+  );
+
+  return (
+    <View
+      style={[
+        styles.card,
+        isKitchen ? styles.cardKitchen : null,
+        selected && isWaiter ? styles.cardSelected : null,
+      ]}
+    >
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onPress}
+          style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
+        >
+          {mainContent}
+        </Pressable>
+      ) : (
+        mainContent
+      )}
+
+      {selected && isWaiter && onEditPress != null ? (
+        <Pressable
+          accessibilityLabel="Editar pedido"
+          onPress={onEditPress}
+          style={({ pressed }) => [styles.editFab, { opacity: pressed ? 0.88 : 1 }]}
+        >
+          <Text style={styles.editFabText}>Editar</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -204,7 +256,29 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     gap: theme.spacing.md,
+    overflow: 'visible',
     padding: theme.spacing.md,
+    position: 'relative',
+  },
+  cardSelected: {
+    backgroundColor: `${theme.colors.primary}0d`,
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+  },
+  editFab: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
+    bottom: theme.spacing.md,
+    elevation: 3,
+    left: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+    position: 'absolute',
+  },
+  editFabText: {
+    color: theme.colors.surface,
+    fontSize: 15,
+    fontWeight: '800',
   },
   cardKitchen: {
     borderWidth: 2,
@@ -218,6 +292,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  readOnlyBadge: {
+    backgroundColor: theme.colors.muted,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+  },
+  readOnlyBadgeText: {
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  titleRowTable: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
   },
   itemsContainer: {
     gap: theme.spacing.xs,

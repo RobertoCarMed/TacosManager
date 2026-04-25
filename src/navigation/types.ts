@@ -4,8 +4,9 @@ export type AuthStackParamList = {
 };
 
 export type WaiterStackParamList = {
-  WaiterOrders: undefined;
   CreateOrder: undefined;
+  EditOrder: {orderId: string};
+  WaiterOrders: undefined;
 };
 
 export type KitchenStackParamList = {

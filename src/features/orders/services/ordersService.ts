@@ -62,6 +62,7 @@ function mapOrder(
                 )
               : [],
             id: typeof item.id === 'string' ? item.id : undefined,
+            isNew: item.isNew === true,
             name: item.name,
             price:
               typeof item.price === 'number' && Number.isFinite(item.price)
@@ -74,7 +75,10 @@ function mapOrder(
   } else {
     // Legacy document: wrap flat `items` into a single plate
     const legacyItems: OrderItem[] = Array.isArray(rawOrder.items)
-      ? (rawOrder.items as OrderItem[])
+      ? (rawOrder.items as OrderItem[]).map(item => ({
+          ...item,
+          isNew: item.isNew === true,
+        }))
       : [];
     plates =
       legacyItems.length > 0
@@ -95,34 +99,119 @@ function mapOrder(
   };
 }
 
+type ItemWrite = {
+  availableComplements: string[];
+  complements: string[];
+  isNew: boolean;
+  name: string;
+  price: number;
+  quantity: number;
+  id?: string;
+};
+
+type PlateWrite = {
+  id: string;
+  items: ItemWrite[];
+};
+
+/** Firestore rejects `undefined` — omit optional `id` when not a string. */
+function orderItemToWrite(item: OrderItem): ItemWrite {
+  const base: ItemWrite = {
+    availableComplements: item.availableComplements ?? [],
+    complements: item.complements ?? [],
+    isNew: item.isNew === true,
+    name: item.name.trim(),
+    price: item.price ?? 0,
+    quantity: item.quantity,
+  };
+  if (typeof item.id === 'string' && item.id.length > 0) {
+    return { ...base, id: item.id };
+  }
+  return base;
+}
+
+function buildPlatesWritePayload(plates: Plate[]): PlateWrite[] {
+  return plates.map(plate => ({
+    id: plate.id,
+    items: plate.items.map(orderItemToWrite),
+  }));
+}
+
+function withItemNewFlag(plate: Plate, isNew: boolean): Plate {
+  return {
+    ...plate,
+    items: plate.items.map(item => ({
+      ...item,
+      isNew,
+    })),
+  };
+}
+
+function clearOrderItemHighlights(order: Order): {
+  items: ItemWrite[];
+  plates: PlateWrite[];
+} {
+  const normalizedPlates = order.plates.map(plate => withItemNewFlag(plate, false));
+  return {
+    items: normalizedPlates.flatMap(plate => plate.items.map(orderItemToWrite)),
+    plates: buildPlatesWritePayload(normalizedPlates),
+  };
+}
+
 export const ordersService = {
   async createOrder(taqueriaId: string, payload: CreateOrderPayload) {
+    const plates = buildPlatesWritePayload(payload.plates);
+    const flatItems = payload.plates.flatMap(plate =>
+      plate.items.map(item => orderItemToWrite(item as OrderItem)),
+    );
     await getOrdersCollection(taqueriaId).add({
       createdAt: Date.now(),
-      plates: payload.plates.map(plate => ({
-        id: plate.id,
-        items: plate.items.map(item => ({
-          availableComplements: item.availableComplements ?? [],
-          complements: item.complements ?? [],
-          id: item.id,
-          name: item.name.trim(),
-          price: item.price ?? 0,
-          quantity: item.quantity,
-        })),
-      })),
-      // Legacy flat items kept for any external consumer that reads `items`
-      items: payload.plates.flatMap(plate =>
-        plate.items.map(item => ({
-          availableComplements: item.availableComplements ?? [],
-          complements: item.complements ?? [],
-          id: item.id,
-          name: item.name.trim(),
-          price: item.price ?? 0,
-          quantity: item.quantity,
-        })),
-      ),
+      items: flatItems,
+      plates,
       status: 'pending',
       table: payload.table.trim(),
+    });
+  },
+
+  async getOrder(taqueriaId: string, orderId: string): Promise<Order | null> {
+    const ref = getOrdersCollection(taqueriaId).doc(orderId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return null;
+    }
+    return mapOrder(snap.data() ?? {}, orderId);
+  },
+
+  /**
+   * Appends new plates to the existing order document (does not create a new order).
+   * Merged flat `items` matches `plates` for backward compatibility.
+   */
+  async appendPlatesToOrder(
+    taqueriaId: string,
+    orderId: string,
+    existing: Order,
+    newPlates: Plate[],
+  ) {
+    if (newPlates.length === 0) {
+      return;
+    }
+    const nonEmptyNew = newPlates.filter(
+      p => p.items && p.items.length > 0,
+    ) as Plate[];
+    if (nonEmptyNew.length === 0) {
+      return;
+    }
+    const existingPlates = existing.plates.map(plate => withItemNewFlag(plate, false));
+    const newPlatesMarked = nonEmptyNew.map(plate => withItemNewFlag(plate, true));
+    const merged: Plate[] = [...existingPlates, ...newPlatesMarked];
+    const payloadPlates = buildPlatesWritePayload(merged);
+    const flatItems = merged.flatMap(plate =>
+      plate.items.map(item => orderItemToWrite(item)),
+    );
+    await getOrdersCollection(taqueriaId).doc(orderId).update({
+      items: flatItems,
+      plates: payloadPlates,
+      status: 'updated',
     });
   },
 
@@ -152,6 +241,22 @@ export const ordersService = {
     orderId: string,
     status: OrderStatus,
   ) {
-    await getOrdersCollection(taqueriaId).doc(orderId).update({ status });
+    const orderRef = getOrdersCollection(taqueriaId).doc(orderId);
+    if (status !== 'preparing') {
+      await orderRef.update({ status });
+      return;
+    }
+
+    const snap = await orderRef.get();
+    if (!snap.exists) {
+      throw new Error('No se encontró el pedido.');
+    }
+    const order = mapOrder(snap.data() ?? {}, orderId);
+    const sanitized = clearOrderItemHighlights(order);
+    await orderRef.update({
+      items: sanitized.items,
+      plates: sanitized.plates,
+      status: 'preparing',
+    });
   },
 };
