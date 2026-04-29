@@ -1,6 +1,5 @@
 import {useCallback, useState} from 'react';
 import {authService} from '../services/authService';
-import {userService} from '../services/userService';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -52,14 +51,7 @@ export function useLogin() {
       setError(null);
       setIsLoading(true);
 
-      const credential = await authService.login(email, password);
-      const userProfile = await userService.getUserById(credential.user.uid);
-
-      if (!userProfile) {
-        throw new Error('No se encontro el perfil del usuario en Firestore.');
-      }
-
-      authService.setSessionUser(userProfile);
+      await authService.login(email, password);
 
       return true;
     } catch (loginError) {

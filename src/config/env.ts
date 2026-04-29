@@ -11,7 +11,6 @@ const requiredEnvVars = [
 ];
 
 for (const envVar of requiredEnvVars) {
-  console.log(envVar, Config);
   if (!Config[envVar]) {
     throw new Error(`Missing required environment variable: ${envVar}`);
   }
