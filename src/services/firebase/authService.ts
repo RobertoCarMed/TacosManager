@@ -1,7 +1,12 @@
-import {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import {
+  FirebaseAuthTypes,
+  signInAnonymously,
+  onAuthStateChanged,
+  signOut,
+} from '@react-native-firebase/auth';
 import {APP_CONFIG} from '../../shared/constants';
 import {AppUser, UserRole} from '../../shared/types';
-import {firebaseAuth} from './config';
+import {firebaseModularAuth} from './config';
 
 let sessionUser: AppUser | null = null;
 
@@ -22,7 +27,7 @@ function buildFallbackUser(firebaseUser: FirebaseAuthTypes.User): AppUser {
 
 export const authService = {
   async signIn({name, role, taqueriaId}: SignInParams) {
-    const credential = await firebaseAuth.signInAnonymously();
+    const credential = await signInAnonymously(firebaseModularAuth);
 
     sessionUser = {
       id: credential.user.uid,
@@ -36,11 +41,11 @@ export const authService = {
 
   async signOut() {
     sessionUser = null;
-    await firebaseAuth.signOut();
+    await signOut(firebaseModularAuth);
   },
 
   subscribe(callback: (user: AppUser | null) => void) {
-    return firebaseAuth.onAuthStateChanged(firebaseUser => {
+    return onAuthStateChanged(firebaseModularAuth, firebaseUser => {
       if (!firebaseUser) {
         sessionUser = null;
         callback(null);

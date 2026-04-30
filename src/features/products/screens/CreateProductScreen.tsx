@@ -30,6 +30,14 @@ export function CreateProductScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<KitchenStackParamList>>();
   const canAddComplement = complements.length < 3;
+  const handleSafeGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate('KitchenDashboard');
+  };
 
   const handleSaveProduct = async () => {
     const wasSaved = await saveProduct();
@@ -38,7 +46,7 @@ export function CreateProductScreen() {
         'Producto guardado',
         'El producto se ha guardado correctamente',
       );
-      navigation.goBack();
+      handleSafeGoBack();
     }
   };
 

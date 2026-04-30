@@ -48,10 +48,12 @@ export function useLogin() {
     }
 
     try {
+      console.log("entra a login 1")
       setError(null);
       setIsLoading(true);
 
       await authService.login(email, password);
+      console.log("entra a login 2")
 
       return true;
     } catch (loginError) {

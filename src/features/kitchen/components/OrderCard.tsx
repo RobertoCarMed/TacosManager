@@ -195,12 +195,16 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
           <View style={styles.platesContainer}>
             {order.plates.map((plate, plateIndex) => (
               <View
-                key={plate.id ?? `plate-${plateIndex}`}
+                key={plate.id ?? `${order.id}-plate-${plateIndex}`}
                 style={styles.plateBlock}
               >
                 <Text style={styles.plateTitle}>PLATO {plateIndex + 1}</Text>
                 {plate.items.map((item, itemIndex) =>
-                  renderItem(item, item.id ?? `${item.name}-${itemIndex}`),
+                  renderItem(
+                    item,
+                    item.id ??
+                      `${order.id}-${plate.id ?? plateIndex}-${item.name}-${itemIndex}`,
+                  ),
                 )}
               </View>
             ))}
@@ -208,7 +212,7 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
         ) : (
           <View style={styles.plateBlock}>
             {order.items.map((item, itemIndex) =>
-              renderItem(item, item.id ?? `${item.name}-${itemIndex}`),
+              renderItem(item, item.id ?? `${order.id}-${item.name}-${itemIndex}`),
             )}
           </View>
         )}

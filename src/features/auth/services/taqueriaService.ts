@@ -1,5 +1,14 @@
-import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
-import {firestoreDb} from '../../../services/firebase/config';
+import {
+  FirebaseFirestoreTypes,
+  collection,
+  doc,
+  getDocs,
+  limit,
+  query,
+  setDoc,
+  where,
+} from '@react-native-firebase/firestore';
+import {firestoreModularDb} from '../../../services/firebase/config';
 import {CreateTaqueriaParams, TaqueriaLookupResult, TaqueriaRecord} from '../types';
 
 function mapCreatedAt(
@@ -46,7 +55,8 @@ export const taqueriaService = {
     ownerId,
     state,
   }: CreateTaqueriaParams) {
-    const taqueriaReference = firestoreDb.collection('taquerias').doc();
+    const taqueriasCollection = collection(firestoreModularDb, 'taquerias');
+    const taqueriaReference = doc(taqueriasCollection);
     const createdAt = Date.now();
 
     const taqueria: TaqueriaRecord = {
@@ -60,19 +70,20 @@ export const taqueriaService = {
       state: state.trim(),
     };
 
-    await taqueriaReference.set(taqueria);
+    await setDoc(taqueriaReference, taqueria);
 
     return taqueria;
   },
 
   async findTaqueriaByName(taqueriaName: string): Promise<TaqueriaLookupResult> {
     const normalizedName = normalizeTaqueriaName(taqueriaName);
-
-    const snapshot = await firestoreDb
-      .collection('taquerias')
-      .where('normalizedName', '==', normalizedName)
-      .limit(1)
-      .get();
+    const taqueriasCollection = collection(firestoreModularDb, 'taquerias');
+    const taqueriaQuery = query(
+      taqueriasCollection,
+      where('normalizedName', '==', normalizedName),
+      limit(1),
+    );
+    const snapshot = await getDocs(taqueriaQuery);
 
     return {
       normalizedName,

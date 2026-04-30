@@ -83,6 +83,12 @@ export function RegisterScreen({navigation}: Props) {
     [isTablet],
   );
 
+  const handleSafeGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
   const handleChange = <K extends keyof RegisterFormValues>(
     key: K,
     value: RegisterFormValues[K],
@@ -128,7 +134,7 @@ export function RegisterScreen({navigation}: Props) {
     const registeredUser = await register(values);
 
     if (registeredUser) {
-      navigation.goBack();
+      handleSafeGoBack();
     }
   };
 
@@ -262,7 +268,7 @@ export function RegisterScreen({navigation}: Props) {
 
         <AppButton
           label="Ya tengo acceso"
-          onPress={() => navigation.goBack()}
+          onPress={handleSafeGoBack}
           variant="secondary"
         />
       </View>

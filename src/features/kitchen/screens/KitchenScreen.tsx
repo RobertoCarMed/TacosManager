@@ -3,11 +3,9 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {
   FlatList,
   LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -33,7 +31,7 @@ const statusPriority: Record<Order['status'], number> = {
 const layoutReflowAnimation = {
   create: {
     duration: 280,
-    property: LayoutAnimation.Properties.opacity,
+    property: LayoutAnimation.Properties.scaleXY,
     type: LayoutAnimation.Types.easeInEaseOut,
   },
   delete: {
@@ -63,12 +61,6 @@ export function KitchenScreen({navigation}: Props) {
   const [animatedOrders, setAnimatedOrders] = useState(orders);
   const hasSyncedInitialOrders = useRef(false);
   const isTabletLandscape = width >= 768 && width >= height;
-
-  useEffect(() => {
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
 
   useLayoutEffect(() => {
     if (!hasSyncedInitialOrders.current) {
@@ -120,11 +112,22 @@ export function KitchenScreen({navigation}: Props) {
     return [
       ...activeOrders,
       ...Array.from({length: numColumns - remainder}, (_, index) => ({
-        id: `grid-spacer-${index}`,
+        id: `grid-spacer-${activeOrders.map(order => order.id).join('-')}-${index}`,
         isPlaceholder: true as const,
       })),
     ];
   }, [activeOrders, numColumns]);
+
+  const orderIdentity = useMemo(
+    () => activeOrders.map(order => `${order.id}-${order.status}`).join('|'),
+    [activeOrders],
+  );
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('kitchen activeOrders:', activeOrders.map(order => order.id));
+    }
+  }, [activeOrders]);
 
   return (
     <Screen contentStyle={styles.container}>
@@ -151,8 +154,11 @@ export function KitchenScreen({navigation}: Props) {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
         data={gridData}
+        extraData={orderIdentity}
         key="kitchen-grid-2"
-        keyExtractor={item => item.id}
+        keyExtractor={item =>
+          'isPlaceholder' in item ? item.id : `${item.id}-${item.status}`
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>La cocina esta al dia</Text>

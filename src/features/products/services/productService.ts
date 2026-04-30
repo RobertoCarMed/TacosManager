@@ -1,6 +1,16 @@
 import storage from '@react-native-firebase/storage';
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import { firestoreDb } from '../../../services/firebase/config';
+import {
+  FirebaseFirestoreTypes,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+} from '@react-native-firebase/firestore';
+import { firestoreModularDb } from '../../../services/firebase/config';
 import { CreateProductPayload, Product, UpdateProductPayload } from '../types';
 
 function sanitizeFileName(name: string) {
@@ -61,11 +71,11 @@ function sanitizeComplements(complements: string[]) {
 
 export const productService = {
   async createProduct(payload: CreateProductPayload): Promise<Product> {
-    const productsReference = firestoreDb
-      .collection('taquerias')
-      .doc(payload.taqueriaId)
-      .collection('products')
-      .doc();
+    const productsCollection = collection(
+      doc(collection(firestoreModularDb, 'taquerias'), payload.taqueriaId),
+      'products',
+    );
+    const productsReference = doc(productsCollection);
 
     let imageUrl: string | undefined;
 
@@ -95,18 +105,18 @@ export const productService = {
       ? { ...baseProduct, imageUrl }
       : baseProduct;
 
-    await productsReference.set(product);
+    await setDoc(productsReference, product);
 
     return product;
   },
 
   async fetchProducts(taqueriaId: string): Promise<Product[]> {
-    const snapshot = await firestoreDb
-      .collection('taquerias')
-      .doc(taqueriaId)
-      .collection('products')
-      .orderBy('name', 'asc')
-      .get();
+    const productsCollection = collection(
+      doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
+      'products',
+    );
+    const productsQuery = query(productsCollection, orderBy('name', 'asc'));
+    const snapshot = await getDocs(productsQuery);
 
     return snapshot.docs.map(snapshotItem =>
       mapProduct(snapshotItem.id, snapshotItem.data()),
@@ -114,11 +124,11 @@ export const productService = {
   },
 
   async updateProduct(payload: UpdateProductPayload): Promise<Product> {
-    const productRef = firestoreDb
-      .collection('taquerias')
-      .doc(payload.taqueriaId)
-      .collection('products')
-      .doc(payload.productId);
+    const productsCollection = collection(
+      doc(collection(firestoreModularDb, 'taquerias'), payload.taqueriaId),
+      'products',
+    );
+    const productRef = doc(productsCollection, payload.productId);
 
     let imageUrl = payload.existingImageUrl;
 
@@ -154,9 +164,9 @@ export const productService = {
       updates.imageUrl = imageUrl;
     }
 
-    await productRef.update(updates);
+    await updateDoc(productRef, updates);
 
-    const updatedDoc = await productRef.get();
+    const updatedDoc = await getDoc(productRef);
     if (!updatedDoc.exists || !updatedDoc.data()) {
       throw new Error('No se encontro el producto actualizado.');
     }

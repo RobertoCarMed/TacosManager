@@ -25,6 +25,14 @@ export function CreateOrderScreen({navigation}: Props) {
   const [itemsInput, setItemsInput] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const {createOrder, isLoading} = useOrders();
+  const handleSafeGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate('WaiterOrders');
+  };
 
   const handleCreateOrder = async () => {
     const items = parseItems(itemsInput);
@@ -41,7 +49,7 @@ export function CreateOrderScreen({navigation}: Props) {
         table: table.trim(),
       });
       Alert.alert('Pedido creado', 'La cocina vera el pedido en tiempo real.');
-      navigation.goBack();
+      handleSafeGoBack();
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
     }

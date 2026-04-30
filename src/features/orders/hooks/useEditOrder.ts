@@ -44,6 +44,7 @@ export function useEditOrder(orderId: string) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    console.log('useEffect', user?.taqueriaId, orderId);
     if (!user?.taqueriaId || !orderId) {
       setIsLoadingOrder(false);
       return;
@@ -53,9 +54,12 @@ export function useEditOrder(orderId: string) {
 
     (async () => {
       setIsLoadingOrder(true);
+      console.log("entra a getOrder")
       setLoadError(null);
       try {
+        console.log("entra a getOrder 3")
         const order = await ordersService.getOrder(user.taqueriaId, orderId);
+        console.log("order", order);
         if (cancelled) {
           return;
         }
@@ -66,6 +70,7 @@ export function useEditOrder(orderId: string) {
           setExistingOrder(order);
         }
       } catch (loadErr) {
+        console.log("catch getOrder", loadErr);
         if (!cancelled) {
           setLoadError(
             loadErr instanceof Error
@@ -74,6 +79,7 @@ export function useEditOrder(orderId: string) {
           );
         }
       } finally {
+        console.log("finally getOrder")
         if (!cancelled) {
           setIsLoadingOrder(false);
         }

@@ -1,5 +1,15 @@
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
-import { firestoreDb } from '../../../services/firebase/config';
+import {
+  FirebaseFirestoreTypes,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+} from '@react-native-firebase/firestore';
+import { firestoreModularDb } from '../../../services/firebase/config';
 import {
   CreateOrderPayload,
   Order,
@@ -9,10 +19,10 @@ import {
 } from '../../../shared/types';
 
 function getOrdersCollection(taqueriaId: string) {
-  return firestoreDb
-    .collection('taquerias')
-    .doc(taqueriaId)
-    .collection('orders');
+  return collection(
+    doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
+    'orders',
+  );
 }
 
 /**
@@ -164,7 +174,7 @@ export const ordersService = {
     const flatItems = payload.plates.flatMap(plate =>
       plate.items.map(item => orderItemToWrite(item as OrderItem)),
     );
-    await getOrdersCollection(taqueriaId).add({
+    await addDoc(getOrdersCollection(taqueriaId), {
       createdAt: Date.now(),
       items: flatItems,
       plates,
@@ -174,8 +184,8 @@ export const ordersService = {
   },
 
   async getOrder(taqueriaId: string, orderId: string): Promise<Order | null> {
-    const ref = getOrdersCollection(taqueriaId).doc(orderId);
-    const snap = await ref.get();
+    const ref = doc(getOrdersCollection(taqueriaId), orderId);
+    const snap = await getDoc(ref);
     if (!snap.exists) {
       return null;
     }
@@ -208,7 +218,7 @@ export const ordersService = {
     const flatItems = merged.flatMap(plate =>
       plate.items.map(item => orderItemToWrite(item)),
     );
-    await getOrdersCollection(taqueriaId).doc(orderId).update({
+    await updateDoc(doc(getOrdersCollection(taqueriaId), orderId), {
       items: flatItems,
       plates: payloadPlates,
       status: 'updated',
@@ -220,20 +230,20 @@ export const ordersService = {
     onData: (orders: Order[]) => void,
     onError: (error: Error) => void,
   ) {
-    return getOrdersCollection(taqueriaId)
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(
-        snapshot => {
-          const orders = snapshot.docs.map(snapshotItem =>
-            mapOrder(snapshotItem.data(), snapshotItem.id),
-          );
+    const ordersQuery = query(getOrdersCollection(taqueriaId), orderBy('createdAt', 'desc'));
+    return onSnapshot(
+      ordersQuery,
+      snapshot => {
+        const orders = snapshot.docs.map(snapshotItem =>
+          mapOrder(snapshotItem.data(), snapshotItem.id),
+        );
 
-          onData(orders);
-        },
-        error => {
-          onError(error);
-        },
-      );
+        onData(orders);
+      },
+      error => {
+        onError(error);
+      },
+    );
   },
 
   async updateOrderStatus(
@@ -241,19 +251,19 @@ export const ordersService = {
     orderId: string,
     status: OrderStatus,
   ) {
-    const orderRef = getOrdersCollection(taqueriaId).doc(orderId);
+    const orderRef = doc(getOrdersCollection(taqueriaId), orderId);
     if (status !== 'preparing') {
-      await orderRef.update({ status });
+      await updateDoc(orderRef, { status });
       return;
     }
 
-    const snap = await orderRef.get();
+    const snap = await getDoc(orderRef);
     if (!snap.exists) {
       throw new Error('No se encontró el pedido.');
     }
     const order = mapOrder(snap.data() ?? {}, orderId);
     const sanitized = clearOrderItemHighlights(order);
-    await orderRef.update({
+    await updateDoc(orderRef, {
       items: sanitized.items,
       plates: sanitized.plates,
       status: 'preparing',

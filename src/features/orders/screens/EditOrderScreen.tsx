@@ -99,12 +99,20 @@ export function EditOrderScreen({ navigation, route }: Props) {
     () => Boolean(selectedProduct) && quantity > 0,
     [quantity, selectedProduct],
   );
+  const handleSafeGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate('WaiterOrders');
+  };
 
   const handleSave = async () => {
     const ok = await saveChanges();
     if (ok) {
       Alert.alert('Listo', 'Pedido actualizado correctamente', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: handleSafeGoBack },
       ]);
     }
   };
@@ -135,7 +143,7 @@ export function EditOrderScreen({ navigation, route }: Props) {
         </Text>
         <AppButton
           label="Volver"
-          onPress={() => navigation.goBack()}
+          onPress={handleSafeGoBack}
           variant="secondary"
         />
       </Screen>

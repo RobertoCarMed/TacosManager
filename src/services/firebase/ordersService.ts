@@ -1,17 +1,26 @@
-import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import {
+  FirebaseFirestoreTypes,
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+} from '@react-native-firebase/firestore';
 import {
   CreateOrderPayload,
   Order,
   OrderStatus,
   Plate,
 } from '../../shared/types';
-import { firestoreDb } from './config';
+import { firestoreModularDb } from './config';
 
 function getOrdersCollection(taqueriaId: string) {
-  return firestoreDb
-    .collection('taquerias')
-    .doc(taqueriaId)
-    .collection('orders');
+  return collection(
+    doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
+    'orders',
+  );
 }
 
 function mapOrder(
@@ -73,7 +82,7 @@ function mapOrder(
 
 export const ordersService = {
   async createOrder(taqueriaId: string, payload: CreateOrderPayload) {
-    await getOrdersCollection(taqueriaId).add({
+    await addDoc(getOrdersCollection(taqueriaId), {
       createdAt: Date.now(),
       items: payload.plates.flatMap(plate =>
         plate.items.map(item => ({
@@ -104,19 +113,18 @@ export const ordersService = {
     onData: (orders: Order[]) => void,
     onError: (error: Error) => void,
   ) {
-    return getOrdersCollection(taqueriaId)
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(
-        snapshot => {
-          const orders = snapshot.docs.map(snapshotItem =>
-            mapOrder(snapshotItem.data(), snapshotItem.id),
-          );
-          onData(orders);
-        },
-        error => {
-          onError(error);
-        },
-      );
+    return onSnapshot(
+      query(getOrdersCollection(taqueriaId), orderBy('createdAt', 'desc')),
+      snapshot => {
+        const orders = snapshot.docs.map(snapshotItem =>
+          mapOrder(snapshotItem.data(), snapshotItem.id),
+        );
+        onData(orders);
+      },
+      error => {
+        onError(error);
+      },
+    );
   },
 
   async updateOrderStatus(
@@ -124,6 +132,6 @@ export const ordersService = {
     orderId: string,
     status: OrderStatus,
   ) {
-    await getOrdersCollection(taqueriaId).doc(orderId).update({ status });
+    await updateDoc(doc(getOrdersCollection(taqueriaId), orderId), { status });
   },
 };

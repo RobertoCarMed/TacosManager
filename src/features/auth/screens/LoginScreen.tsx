@@ -22,6 +22,7 @@ export function LoginScreen({navigation}: Props) {
   );
 
   const handleLogin = async () => {
+    console.log("handleLogin", email, password);
     await login(email, password);
   };
 

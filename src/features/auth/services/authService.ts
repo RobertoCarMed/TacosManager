@@ -1,12 +1,18 @@
-import {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import {
+  FirebaseAuthTypes,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from '@react-native-firebase/auth';
 import {AppUser} from '../../../shared/types';
-import {firebaseAuth} from '../../../services/firebase/config';
+import {firebaseModularAuth} from '../../../services/firebase/config';
 
 let sessionUser: AppUser | null = null;
 
 export const authService = {
   async createUserWithEmailAndPassword(email: string, password: string) {
-    return firebaseAuth.createUserWithEmailAndPassword(email.trim(), password);
+    return createUserWithEmailAndPassword(firebaseModularAuth, email.trim(), password);
   },
 
   async deleteUser(user: FirebaseAuthTypes.User) {
@@ -22,16 +28,16 @@ export const authService = {
   },
 
   async login(email: string, password: string) {
-    return firebaseAuth.signInWithEmailAndPassword(email.trim(), password);
+    return signInWithEmailAndPassword(firebaseModularAuth, email.trim(), password);
   },
 
   async signOut() {
     sessionUser = null;
-    await firebaseAuth.signOut();
+    await signOut(firebaseModularAuth);
   },
 
   subscribe(callback: (user: FirebaseAuthTypes.User | null) => void) {
-    return firebaseAuth.onAuthStateChanged(firebaseUser => {
+    return onAuthStateChanged(firebaseModularAuth, firebaseUser => {
       if (!firebaseUser) {
         sessionUser = null;
         callback(null);

@@ -60,6 +60,14 @@ export function CreateOrderScreen({ navigation }: Props) {
     () => Boolean(selectedProduct) && quantity > 0,
     [quantity, selectedProduct],
   );
+  const handleSafeGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate('WaiterOrders');
+  };
 
   const handleSave = async () => {
     const wasSaved = await saveOrder();
@@ -69,7 +77,7 @@ export function CreateOrderScreen({ navigation }: Props) {
         'Pedido guardado',
         'El pedido se envio correctamente a cocina.',
       );
-      navigation.goBack();
+      handleSafeGoBack();
     }
   };
 

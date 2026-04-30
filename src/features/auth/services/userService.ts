@@ -1,6 +1,12 @@
-import {FirebaseFirestoreTypes} from '@react-native-firebase/firestore';
+import {
+  FirebaseFirestoreTypes,
+  doc,
+  getDoc,
+  onSnapshot,
+  setDoc,
+} from '@react-native-firebase/firestore';
 import {APP_CONFIG} from '../../../shared/constants';
-import {firestoreDb} from '../../../services/firebase/config';
+import {firestoreModularDb} from '../../../services/firebase/config';
 import {CreateUserProfileParams, RegisteredUserProfile} from '../types';
 
 function mapCreatedAt(
@@ -41,8 +47,8 @@ export const userService = {
     taqueriaId,
   }: CreateUserProfileParams) {
     const createdAt = Date.now();
-
-    await firestoreDb.collection('users').doc(id).set({
+    const userRef = doc(firestoreModularDb, 'users', id);
+    await setDoc(userRef, {
       createdAt,
       email: email.trim().toLowerCase(),
       id,
@@ -66,33 +72,33 @@ export const userService = {
     onData: (user: RegisteredUserProfile | null) => void,
     onError: (error: Error) => void,
   ) {
-    return firestoreDb
-      .collection('users')
-      .doc(userId)
-      .onSnapshot(
-        snapshot => {
-          if (!snapshot.exists) {
-            onData(null);
-            return;
-          }
+    const userRef = doc(firestoreModularDb, 'users', userId);
+    return onSnapshot(
+      userRef,
+      snapshot => {
+        if (!snapshot.exists) {
+          onData(null);
+          return;
+        }
 
-          const data = snapshot.data();
+        const data = snapshot.data();
 
-          if (!data) {
-            onData(null);
-            return;
-          }
+        if (!data) {
+          onData(null);
+          return;
+        }
 
-          onData(mapUserDocument(snapshot.id, data));
-        },
-        error => {
-          onError(error);
-        },
-      );
+        onData(mapUserDocument(snapshot.id, data));
+      },
+      error => {
+        onError(error);
+      },
+    );
   },
 
   async getUserById(userId: string): Promise<RegisteredUserProfile | null> {
-    const snapshot = await firestoreDb.collection('users').doc(userId).get();
+    const userRef = doc(firestoreModularDb, 'users', userId);
+    const snapshot = await getDoc(userRef);
 
     if (!snapshot.exists) {
       return null;
