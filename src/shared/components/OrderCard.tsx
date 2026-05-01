@@ -40,6 +40,18 @@ function formatCurrency(value: number) {
   return `$${Number.isInteger(value) ? value : value.toFixed(2)}`;
 }
 
+function sortItemsByNewFlag(items: Order['items']) {
+  return items
+    .map((item, originalIndex) => ({item, originalIndex}))
+    .sort((a, b) => {
+      if (a.item.isNew === b.item.isNew) {
+        return a.originalIndex - b.originalIndex;
+      }
+
+      return a.item.isNew ? -1 : 1;
+    });
+}
+
 export function OrderCard({
   footer,
   onEditPress,
@@ -127,14 +139,14 @@ export function OrderCard({
                   isKitchen ? styles.itemsContainerKitchen : null,
                 ]}
               >
-                {plate.items.map((item, itemIndex) => {
+                {sortItemsByNewFlag(plate.items).map(({item, originalIndex}) => {
                   const unitPrice = getSafePrice(item.price);
                   const subtotal = unitPrice * item.quantity;
 
                   if (isKitchen) {
                     return (
                       <Text
-                        key={item.id ?? `${item.name}-${itemIndex}`}
+                        key={item.id ?? `${item.name}-${originalIndex}`}
                         style={[
                           styles.itemText,
                           isKitchen ? styles.itemTextKitchen : null,
@@ -147,7 +159,7 @@ export function OrderCard({
 
                   return (
                     <View
-                      key={item.id ?? `${item.name}-${itemIndex}`}
+                      key={item.id ?? `${item.name}-${originalIndex}`}
                       style={styles.itemRowWaiter}
                     >
                       <Text style={styles.itemLeftText}>
@@ -170,14 +182,14 @@ export function OrderCard({
             isKitchen ? styles.itemsContainerKitchen : null,
           ]}
         >
-          {order.items.map((item, index) => {
+          {sortItemsByNewFlag(order.items).map(({item, originalIndex}) => {
             const unitPrice = getSafePrice(item.price);
             const subtotal = unitPrice * item.quantity;
 
             if (isKitchen) {
               return (
                 <Text
-                  key={item.id ?? `${item.name}-${index}`}
+                  key={item.id ?? `${item.name}-${originalIndex}`}
                   style={[
                     styles.itemText,
                     isKitchen ? styles.itemTextKitchen : null,
@@ -190,7 +202,7 @@ export function OrderCard({
 
             return (
               <View
-                key={item.id ?? `${item.name}-${index}`}
+                key={item.id ?? `${item.name}-${originalIndex}`}
                 style={styles.itemRowWaiter}
               >
                 <Text style={styles.itemLeftText}>

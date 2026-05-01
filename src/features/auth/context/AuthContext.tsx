@@ -28,6 +28,7 @@ export function AuthProvider({children}: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const userProfileUnsubscribeRef = useRef<undefined | (() => void)>(undefined);
   const profileTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const profileAttemptIdRef = useRef(0);
 
   const clearProfileTimeout = useCallback(() => {
     if (!profileTimeoutRef.current) {
@@ -38,14 +39,19 @@ export function AuthProvider({children}: PropsWithChildren) {
     profileTimeoutRef.current = undefined;
   }, []);
 
+  const cancelActiveProfileSubscription = useCallback(() => {
+    userProfileUnsubscribeRef.current?.();
+    userProfileUnsubscribeRef.current = undefined;
+  }, []);
+
   useEffect(() => {
     const unsubscribeAuth = authService.subscribe(firebaseUser => {
       clearProfileTimeout();
-      userProfileUnsubscribeRef.current?.();
-      userProfileUnsubscribeRef.current = undefined;
+      cancelActiveProfileSubscription();
+
+      const currentAttemptId = ++profileAttemptIdRef.current;
 
       if (!firebaseUser) {
-        setError(null);
         setUser(null);
         setIsLoading(false);
         return;
@@ -60,22 +66,43 @@ export function AuthProvider({children}: PropsWithChildren) {
       setError(null);
       setIsLoading(true);
       profileTimeoutRef.current = setTimeout(() => {
+        if (profileAttemptIdRef.current !== currentAttemptId) {
+          return;
+        }
+
+        cancelActiveProfileSubscription();
+        setUser(null);
         setError('No se pudo cargar el perfil. Verifica tu conexion e intenta de nuevo.');
         setIsLoading(false);
+
+        authService.signOut().catch(() => {
+          // Ignore sign-out errors here; the UI is already unblocked for another login attempt.
+        });
       }, PROFILE_LOAD_TIMEOUT_MS);
 
       userProfileUnsubscribeRef.current = userService.subscribeToUserProfile(
         firebaseUser.uid,
         nextUser => {
+          if (profileAttemptIdRef.current !== currentAttemptId) {
+            return;
+          }
+
           clearProfileTimeout();
           setUser(nextUser ?? authService.getSessionUser());
           setIsLoading(false);
         },
         profileError => {
+          if (profileAttemptIdRef.current !== currentAttemptId) {
+            return;
+          }
+
           clearProfileTimeout();
           setError(profileError.message);
-          setUser(authService.getSessionUser());
+          setUser(null);
           setIsLoading(false);
+          authService.signOut().catch(() => {
+            // Keep login screen interactive even if remote sign-out takes time.
+          });
         },
       );
     });
@@ -83,9 +110,9 @@ export function AuthProvider({children}: PropsWithChildren) {
     return () => {
       unsubscribeAuth();
       clearProfileTimeout();
-      userProfileUnsubscribeRef.current?.();
+      cancelActiveProfileSubscription();
     };
-  }, [clearProfileTimeout]);
+  }, [cancelActiveProfileSubscription, clearProfileTimeout]);
 
   const handleSignOut = useCallback(async () => {
     try {

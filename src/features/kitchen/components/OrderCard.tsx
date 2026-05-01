@@ -79,9 +79,37 @@ function getComplementColumns(item: Order['items'][number]) {
   return [];
 }
 
+function sortItemsByNewFlag(items: Order['items']) {
+  return items
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((a, b) => {
+      if (a.item.isNew === b.item.isNew) {
+        return a.originalIndex - b.originalIndex;
+      }
+
+      return a.item.isNew ? -1 : 1;
+    });
+}
+
+function sortPlatesByNewFlag(plates: Order['plates']) {
+  return plates
+    .map((plate, originalIndex) => ({ plate, originalIndex }))
+    .sort((a, b) => {
+      const aIsNew = a.plate.items.some(item => item.isNew === true);
+      const bIsNew = b.plate.items.some(item => item.isNew === true);
+
+      if (aIsNew === bIsNew) {
+        return a.originalIndex - b.originalIndex;
+      }
+
+      return aIsNew ? -1 : 1;
+    });
+}
+
 export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
   const action = getActionForStatus(order.status);
   const hasPlates = order.plates && order.plates.length > 0;
+  const sortedPlates = hasPlates ? sortPlatesByNewFlag(order.plates) : [];
   const cardOpacity = useRef(new Animated.Value(1)).current;
   const [isTransitioning, setIsTransitioning] = useState(false);
   const orderType =
@@ -193,28 +221,58 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
         ) : null}
         {hasPlates ? (
           <View style={styles.platesContainer}>
-            {order.plates.map((plate, plateIndex) => (
-              <View
-                key={plate.id ?? `${order.id}-plate-${plateIndex}`}
-                style={styles.plateBlock}
-              >
-                <Text style={styles.plateTitle}>PLATO {plateIndex + 1}</Text>
-                {plate.items.map((item, itemIndex) =>
-                  renderItem(
-                    item,
-                    item.id ??
-                      `${order.id}-${plate.id ?? plateIndex}-${item.name}-${itemIndex}`,
-                  ),
-                )}
-              </View>
+            {sortedPlates.map(({ plate, originalIndex: plateOriginalIndex }) => (
+              (() => {
+                const sortedPlateItems = sortItemsByNewFlag(plate.items);
+
+                return (
+                  <View
+                    key={plate.id}
+                    style={styles.plateBlock}
+                  >
+                    <Text style={styles.plateTitle}>PLATO {plateOriginalIndex + 1}</Text>
+                    {sortedPlateItems.map(({ item, originalIndex }, sortedIndex) => {
+                      return (
+                        <React.Fragment
+                          key={
+                            item.id ??
+                            `${order.id}-${plate.id}-${item.name}-${originalIndex}`
+                          }
+                        >
+                          {renderItem(
+                            item,
+                            item.id ??
+                              `${order.id}-${plate.id}-${item.name}-${originalIndex}`,
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </View>
+                );
+              })()
             ))}
           </View>
         ) : (
-          <View style={styles.plateBlock}>
-            {order.items.map((item, itemIndex) =>
-              renderItem(item, item.id ?? `${order.id}-${item.name}-${itemIndex}`),
-            )}
-          </View>
+          (() => {
+            const sortedOrderItems = sortItemsByNewFlag(order.items);
+
+            return (
+              <View style={styles.plateBlock}>
+                {sortedOrderItems.map(({ item, originalIndex }) => {
+                  return (
+                    <React.Fragment
+                      key={item.id ?? `${order.id}-${item.name}-${originalIndex}`}
+                    >
+                      {renderItem(
+                        item,
+                        item.id ?? `${order.id}-${item.name}-${originalIndex}`,
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+            );
+          })()
         )}
       </View>
 
