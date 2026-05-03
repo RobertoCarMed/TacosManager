@@ -1,281 +1,94 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
+    function signedIn() {
       return request.auth != null;
     }
 
-    function userPath(uid) {
-      return /databases/$(database)/documents/users/$(uid);
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    function taqueriaPath(taqueriaId) {
-      return /databases/$(database)/documents/taquerias/$(taqueriaId);
+    function hasUserDoc() {
+      return signedIn() && exists(userPath());
     }
 
-    function userDocExists() {
-      return isSignedIn() && exists(userPath(request.auth.uid));
+    function userData() {
+      return get(userPath()).data;
     }
 
-    function currentUser() {
-      return get(userPath(request.auth.uid)).data;
+    function isOwnUser(userId) {
+      return signedIn() && request.auth.uid == userId;
     }
 
-    function isValidRole(role) {
-      return role in ['waiter', 'cook'];
+    function sameTaqueria(taqueriaId) {
+      return hasUserDoc() && userData().taqueriaId == taqueriaId;
     }
 
-    function belongsToTaqueria(taqueriaId) {
-      return userDocExists() && currentUser().taqueriaId == taqueriaId;
+    function hasRole(roles) {
+      return hasUserDoc() && userData().role in roles;
     }
 
-    function isTaqueriaOwner(taqueriaId) {
-      return isSignedIn()
-        && exists(taqueriaPath(taqueriaId))
-        && get(taqueriaPath(taqueriaId)).data.ownerId == request.auth.uid;
+    function isCook() {
+      return hasRole(['cook']);
     }
 
-    function isValidTaqueriaCreate() {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'normalizedName',
-          'address',
-          'city',
-          'state',
-          'ownerId',
-          'createdAt'
-        ])
-        && request.resource.data.id is string
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.normalizedName is string
-        && request.resource.data.normalizedName.size() > 0
-        && request.resource.data.address is string
-        && request.resource.data.address.size() > 0
-        && request.resource.data.city is string
-        && request.resource.data.city.size() > 0
-        && request.resource.data.state is string
-        && request.resource.data.state.size() > 0
-        && request.resource.data.ownerId == request.auth.uid;
+    function isWaiter() {
+      return hasRole(['waiter']);
     }
 
-    function isValidUserCreate(userId) {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'email',
-          'role',
-          'taqueriaId',
-          'createdAt'
-        ])
-        && request.resource.data.id == userId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.email is string
-        && request.resource.data.email.size() > 0
-        && isValidRole(request.resource.data.role)
-        && request.resource.data.taqueriaId is string
-        && exists(taqueriaPath(request.resource.data.taqueriaId));
-    }
-
-    function isValidUserUpdate(userId) {
-      return request.resource.data.id == userId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.taqueriaId == resource.data.taqueriaId
-        && isValidRole(request.resource.data.role);
-    }
-
-    function isValidOrderCreate() {
-      return request.resource.data.keys().hasOnly(['table', 'items', 'plates', 'status', 'createdAt'])
-        && request.resource.data.table is string
-        && request.resource.data.table.size() > 0
-        && request.resource.data.plates is list
-        && request.resource.data.plates.size() > 0
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0
-        && request.resource.data.status == 'pending';
-    }
-
-    function isValidOrderStatusUpdate() {
-      return request.resource.data.table == resource.data.table
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.status in ['updated', 'pending', 'preparing', 'ready', 'completed']
-        && (
-          // Standard status transition (no item mutation)
-          (
-            request.resource.data.items == resource.data.items
-            && request.resource.data.get('plates', null) == resource.data.get('plates', null)
-          )
-          // Kitchen "Marcar preparando": clear highlight flags from existing items
-          || (
-            request.resource.data.status == 'preparing'
-            && request.resource.data.items is list
-            && request.resource.data.get('plates', null) is list
-          )
-        );
-    }
-
-    /** Old orders may lack `plates` or have non-list data; treat as 0 for append checks. */
-    function orderPlatesListSizeBefore() {
-      return 'plates' in resource.data && resource.data.plates is list
-        ? resource.data.plates.size()
-        : 0;
-    }
-
-    function orderItemsListSizeBefore() {
-      return 'items' in resource.data && resource.data.items is list
-        ? resource.data.items.size()
-        : 0;
-    }
-
-    /**
-     * Waiter or Owner: append new lines to an order (Edit order / add products).
-     * Invariant: table, createdAt unchanged; items and plates lists only grow.
-     */
-    function isValidOrderItemsAppend() {
-      return (request.resource.data.status in ['pending', 'updated'])
-        && request.resource.data.table == resource.data.table
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.plates is list
-        && request.resource.data.items is list
-        && request.resource.data.plates.size() > 0
-        && request.resource.data.items.size() > 0
-        && request.resource.data.plates.size() >= orderPlatesListSizeBefore()
-        && request.resource.data.items.size() >= orderItemsListSizeBefore();
-    }
-
-    function isValidProductComplements() {
-      return !('complements' in request.resource.data)
-        || (
-          request.resource.data.complements is list
-          && request.resource.data.complements.size() <= 3
-          && (
-            request.resource.data.complements.size() < 1
-            || (
-              request.resource.data.complements[0] is string
-              && request.resource.data.complements[0].size() > 0
-            )
-          )
-          && (
-            request.resource.data.complements.size() < 2
-            || (
-              request.resource.data.complements[1] is string
-              && request.resource.data.complements[1].size() > 0
-            )
-          )
-          && (
-            request.resource.data.complements.size() < 3
-            || (
-              request.resource.data.complements[2] is string
-              && request.resource.data.complements[2].size() > 0
-            )
-          )
-        );
-    }
-
-    function hasValidProductImageUrl() {
-      return !('imageUrl' in request.resource.data)
-        || (
-          request.resource.data.imageUrl is string
-          && request.resource.data.imageUrl.size() > 0
-        );
-    }
-
-    function isValidProductCreate(productId, taqueriaId) {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'price',
-          'imageUrl',
-          'complements',
-          'taqueriaId',
-          'createdAt'
-        ])
-        && request.resource.data.id == productId
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.price is number
-        && request.resource.data.price > 0
-        && request.resource.data.taqueriaId == taqueriaId
-        && request.resource.data.createdAt is number
-        && isValidProductComplements()
-        && hasValidProductImageUrl();
-    }
-
-    function isValidProductUpdate() {
-      return request.resource.data.keys().hasOnly([
-          'id',
-          'name',
-          'price',
-          'imageUrl',
-          'complements',
-          'taqueriaId',
-          'createdAt'
-        ])
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.taqueriaId == resource.data.taqueriaId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.price is number
-        && request.resource.data.price > 0
-        && isValidProductComplements()
-        && hasValidProductImageUrl();
+    match /users/{userId} {
+      allow create: if isOwnUser(userId);
+      allow read: if isOwnUser(userId);
+      allow update: if isOwnUser(userId);
+      allow delete: if false;
     }
 
     match /taquerias/{taqueriaId} {
-      allow create: if isSignedIn() && isValidTaqueriaCreate();
+      // para validar existencia de taqueria durante registro
       allow read: if true;
-      allow update: if isTaqueriaOwner(taqueriaId);
+
+      // crear taqueria al registrar cook/owner
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if sameTaqueria(taqueriaId) && hasRole(['cook']);
       allow delete: if false;
 
       match /orders/{orderId} {
-        allow read: if belongsToTaqueria(taqueriaId) || isTaqueriaOwner(taqueriaId);
+        // Cook: puede leer todos los pedidos de su taqueria.
+        // Waiter: solo puede leer pedidos creados por si mismo.
+        allow get, list: if sameTaqueria(taqueriaId) && (
+          isCook() ||
+          (isWaiter() && resource.data.createdBy == request.auth.uid)
+        );
 
-        allow create: if belongsToTaqueria(taqueriaId)
-          && currentUser().role == 'waiter'
-          && isValidOrderCreate();
+        // Waiter/Cook pueden crear pedidos en su taqueria.
+        // createdBy debe quedar fijo al uid autenticado.
+        allow create: if sameTaqueria(taqueriaId)
+          && hasRole(['waiter', 'cook'])
+          && request.resource.data.createdBy == request.auth.uid;
 
-        allow update: if (belongsToTaqueria(taqueriaId) || isTaqueriaOwner(taqueriaId))
-          && (
-            ( (isTaqueriaOwner(taqueriaId) || currentUser().role == 'waiter') && isValidOrderItemsAppend() )
-            || (userDocExists() && currentUser().role == 'cook' && isValidOrderStatusUpdate())
-          );
+        // Cook puede actualizar cualquier pedido de su taqueria.
+        // Waiter solo puede actualizar sus pedidos y sin cambiar createdBy.
+        allow update: if sameTaqueria(taqueriaId) && (
+          (isCook() && request.resource.data.createdBy == resource.data.createdBy) ||
+          (
+            isWaiter()
+            && resource.data.createdBy == request.auth.uid
+            && request.resource.data.createdBy == resource.data.createdBy
+          )
+        );
 
         allow delete: if false;
       }
 
       match /products/{productId} {
-        allow read: if belongsToTaqueria(taqueriaId) || isTaqueriaOwner(taqueriaId);
-
-        allow create: if belongsToTaqueria(taqueriaId)
-          && currentUser().role == 'cook'
-          && isValidProductCreate(productId, taqueriaId);
-
-        allow update: if belongsToTaqueria(taqueriaId)
-          && currentUser().role == 'cook'
-          && isValidProductUpdate();
-
-        allow delete: if belongsToTaqueria(taqueriaId)
-          && currentUser().role == 'cook';
+        // WaiterOrdersScreen también consulta products
+        allow get, list: if sameTaqueria(taqueriaId) && hasRole(['waiter', 'cook']);
+        allow create, update: if sameTaqueria(taqueriaId) && hasRole(['cook']);
+        allow delete: if false;
       }
-    }
-
-    match /users/{userId} {
-      allow create: if isSignedIn()
-        && request.auth.uid == userId
-        && isValidUserCreate(userId);
-
-      allow read: if isSignedIn() && request.auth.uid == userId;
-
-      allow update: if isSignedIn()
-        && request.auth.uid == userId
-        && isValidUserUpdate(userId);
-
-      allow delete: if false;
     }
   }
 }

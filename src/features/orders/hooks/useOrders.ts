@@ -2,7 +2,7 @@ import {useCallback, useEffect} from 'react';
 import {CreateOrderPayload, OrderStatus} from '../../../shared/types';
 import {useAppDispatch, useAppSelector} from '../../../store/hooks';
 import {useAuth} from '../../auth';
-import {ordersService} from '../services/ordersService';
+import {OrderDateFilter, ordersService} from '../services/ordersService';
 import {
   resetOrdersState,
   selectOrders,
@@ -13,12 +13,19 @@ import {
   setOrdersLoading,
 } from '../store/ordersSlice';
 
-export function useOrders() {
+type UseOrdersOptions = {
+  createdBy?: string;
+  dateFilter?: OrderDateFilter;
+};
+
+export function useOrders(options?: UseOrdersOptions) {
   const dispatch = useAppDispatch();
   const orders = useAppSelector(selectOrders);
   const isLoading = useAppSelector(selectOrdersLoading);
   const error = useAppSelector(selectOrdersError);
   const {user} = useAuth();
+  const dateFilter = options?.dateFilter ?? 'today';
+  const createdBy = options?.createdBy;
 
   useEffect(() => {
     if (!user?.taqueriaId) {
@@ -31,6 +38,10 @@ export function useOrders() {
     // Components consume normalized state from Redux while Firestore sync stays encapsulated here.
     const unsubscribe = ordersService.subscribeToOrders(
       user.taqueriaId,
+      {
+        createdBy,
+        dateFilter,
+      },
       nextOrders => {
         dispatch(setOrders(nextOrders));
       },
@@ -40,7 +51,7 @@ export function useOrders() {
     );
 
     return unsubscribe;
-  }, [dispatch, user?.taqueriaId]);
+  }, [createdBy, dateFilter, dispatch, user?.taqueriaId]);
 
   const createOrder = useCallback(
     async (payload: CreateOrderPayload) => {
@@ -51,7 +62,7 @@ export function useOrders() {
       dispatch(setOrdersLoading(true));
 
       try {
-        await ordersService.createOrder(user.taqueriaId, payload);
+        await ordersService.createOrder(user.taqueriaId, payload, user.id);
       } catch (createOrderError) {
         dispatch(
           setOrdersError(
@@ -65,7 +76,7 @@ export function useOrders() {
         dispatch(setOrdersLoading(false));
       }
     },
-    [dispatch, user?.taqueriaId],
+    [dispatch, user?.id, user?.taqueriaId],
   );
 
   const updateOrderStatus = useCallback(

@@ -166,10 +166,14 @@ export function useCreateOrder() {
       setError(null);
       setIsLoading(true);
 
-      await ordersService.createOrder(user.taqueriaId, {
-        plates: nonEmptyPlates,
-        table: table.trim(),
-      });
+      await ordersService.createOrder(
+        user.taqueriaId,
+        {
+          plates: nonEmptyPlates,
+          table: table.trim(),
+        },
+        user.id,
+      );
 
       // Reset state
       const freshPlate: NewPlate = { id: generatePlateId(), items: [] };
@@ -191,7 +195,7 @@ export function useCreateOrder() {
     } finally {
       setIsLoading(false);
     }
-  }, [plates, table, user?.taqueriaId]);
+  }, [plates, table, user?.id, user?.taqueriaId]);
 
   const canSave = useMemo(
     () =>

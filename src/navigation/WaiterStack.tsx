@@ -17,7 +17,7 @@ export function WaiterStack() {
         headerStyle: {backgroundColor: theme.colors.surface},
         headerTintColor: theme.colors.textPrimary,
       }}>
-      <Stack.Screen name="WaiterOrders" component={WaiterOrdersScreen} options={{title: 'Pedidos'}} />
+      <Stack.Screen name="WaiterOrders" component={WaiterOrdersScreen} options={{headerShown: false}} />
       <Stack.Screen
         name="CreateOrder"
         component={CreateOrderScreen}

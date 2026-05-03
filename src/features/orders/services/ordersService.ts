@@ -4,10 +4,12 @@ import {
   collection,
   doc,
   getDoc,
+  limit,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
+  where,
 } from '@react-native-firebase/firestore';
 import { firestoreModularDb } from '../../../services/firebase/config';
 import {
@@ -23,6 +25,40 @@ function getOrdersCollection(taqueriaId: string) {
     doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
     'orders',
   );
+}
+
+export type OrderDateFilter = 'today' | '7d' | '1m' | '3m';
+
+type SubscribeOrdersOptions = {
+  createdBy?: string;
+  dateFilter: OrderDateFilter;
+  limitTo?: number;
+};
+
+function getStartDateMs(filter: OrderDateFilter): number {
+  const now = new Date();
+
+  if (filter === 'today') {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return startOfToday.getTime();
+  }
+
+  if (filter === '7d') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
+    return d.getTime();
+  }
+
+  if (filter === '1m') {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - 1);
+    return d.getTime();
+  }
+
+  const d = new Date(now);
+  d.setMonth(d.getMonth() - 3);
+  return d.getTime();
 }
 
 /**
@@ -169,13 +205,18 @@ function clearOrderItemHighlights(order: Order): {
 }
 
 export const ordersService = {
-  async createOrder(taqueriaId: string, payload: CreateOrderPayload) {
+  async createOrder(
+    taqueriaId: string,
+    payload: CreateOrderPayload,
+    createdBy?: string,
+  ) {
     const plates = buildPlatesWritePayload(payload.plates);
     const flatItems = payload.plates.flatMap(plate =>
       plate.items.map(item => orderItemToWrite(item as OrderItem)),
     );
     await addDoc(getOrdersCollection(taqueriaId), {
       createdAt: Date.now(),
+      createdBy: createdBy ?? '',
       items: flatItems,
       plates,
       status: 'pending',
@@ -227,10 +268,27 @@ export const ordersService = {
 
   subscribeToOrders(
     taqueriaId: string,
+    options: SubscribeOrdersOptions,
     onData: (orders: Order[]) => void,
     onError: (error: Error) => void,
   ) {
-    const ordersQuery = query(getOrdersCollection(taqueriaId), orderBy('createdAt', 'desc'));
+    const startDateMs = getStartDateMs(options.dateFilter);
+    const ordersRef = getOrdersCollection(taqueriaId);
+    const maxResults = options.limitTo ?? 100;
+    const ordersQuery = options.createdBy
+      ? query(
+          ordersRef,
+          where('createdAt', '>=', startDateMs),
+          where('createdBy', '==', options.createdBy),
+          orderBy('createdAt', 'desc'),
+          limit(maxResults),
+        )
+      : query(
+          ordersRef,
+          where('createdAt', '>=', startDateMs),
+          orderBy('createdAt', 'desc'),
+          limit(maxResults),
+        );
     return onSnapshot(
       ordersQuery,
       snapshot => {

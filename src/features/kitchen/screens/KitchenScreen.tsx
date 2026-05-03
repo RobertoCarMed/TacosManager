@@ -16,6 +16,8 @@ import {Order} from '../../../shared/types';
 import {useAuth} from '../../auth';
 import {OrderCard} from '../components/OrderCard';
 import {useOrders} from '../../orders';
+import {OrderDateFilter} from '../../orders/services/ordersService';
+import {orderDateFilterOptions} from '../../orders/constants/dateFilters';
 
 type Props = NativeStackScreenProps<KitchenStackParamList, 'KitchenDashboard'>;
 type GridPlaceholder = {id: string; isPlaceholder: true};
@@ -55,7 +57,8 @@ function toTimestamp(value: string | number) {
 }
 
 export function KitchenScreen({navigation}: Props) {
-  const {error, orders, updateOrderStatus} = useOrders();
+  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('today');
+  const {error, orders, updateOrderStatus} = useOrders({dateFilter});
   const {user} = useAuth();
   const {height, width} = useWindowDimensions();
   const [animatedOrders, setAnimatedOrders] = useState(orders);
@@ -134,11 +137,6 @@ export function KitchenScreen({navigation}: Props) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Panel de cocina</Text>
-          <Text style={styles.subtitle}>
-            {isTabletLandscape
-              ? `Vista KDS en vivo - ${user?.taqueriaId}`
-              : 'Gira la tablet para una mejor visualizacion KDS'}
-          </Text>
         </View>
         <Pressable
           accessibilityLabel="Configuracion"
@@ -146,6 +144,26 @@ export function KitchenScreen({navigation}: Props) {
           style={({pressed}) => [styles.settingsButton, {opacity: pressed ? 0.75 : 1}]}>
           <Text style={styles.settingsIcon}>{'\u2699'}</Text>
         </Pressable>
+      </View>
+
+      <View style={styles.filterRow}>
+        {orderDateFilterOptions.map(option => {
+          const selected = dateFilter === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => setDateFilter(option.value)}
+              style={({pressed}) => [
+                styles.filterPill,
+                selected && styles.filterPillSelected,
+                {opacity: pressed ? 0.85 : 1},
+              ]}>
+              <Text style={[styles.filterText, selected && styles.filterTextSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -209,6 +227,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  filterPill: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  filterPillSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  filterText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterTextSelected: {
+    color: theme.colors.surface,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -246,7 +289,6 @@ const styles = StyleSheet.create({
   subtitle: {
     color: theme.colors.textSecondary,
     fontSize: 16,
-    marginTop: 6,
   },
   title: {
     color: theme.colors.textPrimary,

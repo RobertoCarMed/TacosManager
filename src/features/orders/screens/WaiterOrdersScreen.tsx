@@ -7,13 +7,19 @@ import {theme} from '../../../shared/constants';
 import {useAuth} from '../../auth';
 import {useOrders} from '../hooks/useOrders';
 import {useProducts} from '../../products/hooks/useProducts';
+import {OrderDateFilter} from '../services/ordersService';
+import {orderDateFilterOptions} from '../constants/dateFilters';
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'WaiterOrders'>;
 
 export function WaiterOrdersScreen({navigation}: Props) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const {error, orders} = useOrders();
   const {signOut, user} = useAuth();
+  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('today');
+  const {error, orders} = useOrders({
+    createdBy: user?.id,
+    dateFilter,
+  });
   const {products} = useProducts(user?.taqueriaId);
 
   const ordersWithResolvedPrices = useMemo(() => {
@@ -58,9 +64,28 @@ export function WaiterOrdersScreen({navigation}: Props) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Turno de {user?.name}</Text>
-          <Text style={styles.subtitle}>Pedidos activos para {user?.taqueriaId}</Text>
         </View>
         <AppButton label="Salir" onPress={signOut} variant="secondary" />
+      </View>
+
+      <View style={styles.filterRow}>
+        {orderDateFilterOptions.map(option => {
+          const selected = dateFilter === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => setDateFilter(option.value)}
+              style={({pressed}) => [
+                styles.filterPill,
+                selected && styles.filterPillSelected,
+                {opacity: pressed ? 0.85 : 1},
+              ]}>
+              <Text style={[styles.filterText, selected && styles.filterTextSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -130,6 +155,31 @@ const styles = StyleSheet.create({
   },
   error: {
     color: theme.colors.danger,
+  },
+  filterPill: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  filterPillSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  filterText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterTextSelected: {
+    color: theme.colors.surface,
   },
   fab: {
     alignItems: 'center',
