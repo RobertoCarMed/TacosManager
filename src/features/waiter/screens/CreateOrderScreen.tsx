@@ -24,7 +24,7 @@ export function CreateOrderScreen({navigation}: Props) {
   const [table, setTable] = useState('');
   const [itemsInput, setItemsInput] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
-  const {createOrder, isLoading} = useOrders();
+  const {createOrder, isLoading} = useOrders({subscribe: false});
   const handleSafeGoBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();

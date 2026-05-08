@@ -15,5 +15,21 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "orders",
+      "fieldPath": "items",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "orders",
+      "fieldPath": "plates",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "products",
+      "fieldPath": "complements",
+      "indexes": []
+    }
+  ]
 }

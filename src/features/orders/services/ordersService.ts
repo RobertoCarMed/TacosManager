@@ -4,14 +4,24 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   updateDoc,
   where,
 } from '@react-native-firebase/firestore';
 import { firestoreModularDb } from '../../../services/firebase/config';
+import {
+  logFirestoreSnapshot,
+  logFirestoreSubscriptionEnd,
+  logFirestoreSubscriptionError,
+  logFirestoreSubscriptionStart,
+  runFirestoreOperation,
+  toFirestoreUserError,
+} from '../../../services/firebase/firestoreOperations';
 import {
   CreateOrderPayload,
   Order,
@@ -34,6 +44,14 @@ type SubscribeOrdersOptions = {
   dateFilter: OrderDateFilter;
   limitTo?: number;
 };
+
+type GetOrderOptions = {
+  source?: 'default' | 'server';
+};
+
+const ORDER_READ_TIMEOUT_MS = 12000;
+const ORDER_WRITE_TIMEOUT_MS = 20000;
+const ORDER_TRANSACTION_TIMEOUT_MS = 25000;
 
 function getStartDateMs(filter: OrderDateFilter): number {
   const now = new Date();
@@ -214,20 +232,62 @@ export const ordersService = {
     const flatItems = payload.plates.flatMap(plate =>
       plate.items.map(item => orderItemToWrite(item as OrderItem)),
     );
-    await addDoc(getOrdersCollection(taqueriaId), {
-      createdAt: Date.now(),
-      createdBy: createdBy ?? '',
-      items: flatItems,
-      plates,
-      status: 'pending',
-      table: payload.table.trim(),
-    });
+
+    await runFirestoreOperation(
+      'orders.createOrder',
+      () =>
+        addDoc(getOrdersCollection(taqueriaId), {
+          createdAt: Date.now(),
+          createdBy: createdBy ?? '',
+          items: flatItems,
+          plates,
+          status: 'pending',
+          table: payload.table.trim(),
+        }),
+      {
+        diagnostics: {
+          createdBy,
+          items: flatItems.length,
+          plates: plates.length,
+          taqueriaId,
+        },
+        fallbackMessage: 'No se pudo crear el pedido.',
+        timeoutMs: ORDER_WRITE_TIMEOUT_MS,
+      },
+    );
   },
 
-  async getOrder(taqueriaId: string, orderId: string): Promise<Order | null> {
+  async getOrder(
+    taqueriaId: string,
+    orderId: string,
+    options: GetOrderOptions = {},
+  ): Promise<Order | null> {
     const ref = doc(getOrdersCollection(taqueriaId), orderId);
-    const snap = await getDoc(ref);
-    if (!snap.exists) {
+    const source = options.source ?? 'default';
+    const snap = await runFirestoreOperation(
+      source === 'server' ? 'orders.getOrder.server' : 'orders.getOrder',
+      () => (source === 'server' ? getDocFromServer(ref) : getDoc(ref)),
+      {
+        diagnostics: {
+          orderId,
+          source,
+          taqueriaId,
+        },
+        fallbackMessage: 'No se pudo cargar el pedido.',
+        timeoutMs: ORDER_READ_TIMEOUT_MS,
+      },
+    );
+
+    if (__DEV__) {
+      console.log('[Firestore] orders.getOrder metadata', {
+        fromCache: snap.metadata.fromCache,
+        hasPendingWrites: snap.metadata.hasPendingWrites,
+        orderId,
+        source,
+      });
+    }
+
+    if (!snap.exists()) {
       return null;
     }
     return mapOrder(snap.data() ?? {}, orderId);
@@ -240,7 +300,6 @@ export const ordersService = {
   async appendPlatesToOrder(
     taqueriaId: string,
     orderId: string,
-    existing: Order,
     newPlates: Plate[],
   ) {
     if (newPlates.length === 0) {
@@ -252,18 +311,46 @@ export const ordersService = {
     if (nonEmptyNew.length === 0) {
       return;
     }
-    const existingPlates = existing.plates.map(plate => withItemNewFlag(plate, false));
-    const newPlatesMarked = nonEmptyNew.map(plate => withItemNewFlag(plate, true));
-    const merged: Plate[] = [...existingPlates, ...newPlatesMarked];
-    const payloadPlates = buildPlatesWritePayload(merged);
-    const flatItems = merged.flatMap(plate =>
-      plate.items.map(item => orderItemToWrite(item)),
+
+    const orderRef = doc(getOrdersCollection(taqueriaId), orderId);
+    await runFirestoreOperation(
+      'orders.appendPlatesToOrder.transaction',
+      () =>
+        runTransaction(firestoreModularDb, async transaction => {
+          const snap = await transaction.get(orderRef);
+          if (!snap.exists()) {
+            throw new Error('No se encontro el pedido.');
+          }
+
+          const existing = mapOrder(snap.data() ?? {}, orderId);
+          const existingPlates = existing.plates.map(plate =>
+            withItemNewFlag(plate, false),
+          );
+          const newPlatesMarked = nonEmptyNew.map(plate =>
+            withItemNewFlag(plate, true),
+          );
+          const merged: Plate[] = [...existingPlates, ...newPlatesMarked];
+          const payloadPlates = buildPlatesWritePayload(merged);
+          const flatItems = merged.flatMap(plate =>
+            plate.items.map(item => orderItemToWrite(item)),
+          );
+
+          transaction.update(orderRef, {
+            items: flatItems,
+            plates: payloadPlates,
+            status: 'updated',
+          });
+        }),
+      {
+        diagnostics: {
+          newPlates: nonEmptyNew.length,
+          orderId,
+          taqueriaId,
+        },
+        fallbackMessage: 'No se pudieron guardar los cambios del pedido.',
+        timeoutMs: ORDER_TRANSACTION_TIMEOUT_MS,
+      },
     );
-    await updateDoc(doc(getOrdersCollection(taqueriaId), orderId), {
-      items: flatItems,
-      plates: payloadPlates,
-      status: 'updated',
-    });
   },
 
   subscribeToOrders(
@@ -289,9 +376,24 @@ export const ordersService = {
           orderBy('createdAt', 'desc'),
           limit(maxResults),
         );
-    return onSnapshot(
+    const subscriptionName = options.createdBy
+      ? 'orders.subscribeToOrders.waiter'
+      : 'orders.subscribeToOrders.kitchen';
+    const subscriptionStartedAt = logFirestoreSubscriptionStart(
+      subscriptionName,
+      {
+        createdBy: options.createdBy,
+        dateFilter: options.dateFilter,
+        limitTo: maxResults,
+        startDateMs,
+        taqueriaId,
+      },
+    );
+
+    const unsubscribe = onSnapshot(
       ordersQuery,
       snapshot => {
+        logFirestoreSnapshot(subscriptionName, subscriptionStartedAt, snapshot);
         const orders = snapshot.docs.map(snapshotItem =>
           mapOrder(snapshotItem.data(), snapshotItem.id),
         );
@@ -299,9 +401,17 @@ export const ordersService = {
         onData(orders);
       },
       error => {
-        onError(error);
+        logFirestoreSubscriptionError(subscriptionName, error);
+        onError(
+          toFirestoreUserError(error, 'No se pudieron sincronizar los pedidos.'),
+        );
       },
     );
+
+    return () => {
+      logFirestoreSubscriptionEnd(subscriptionName);
+      unsubscribe();
+    };
   },
 
   async updateOrderStatus(
@@ -311,20 +421,48 @@ export const ordersService = {
   ) {
     const orderRef = doc(getOrdersCollection(taqueriaId), orderId);
     if (status !== 'preparing') {
-      await updateDoc(orderRef, { status });
+      await runFirestoreOperation(
+        'orders.updateOrderStatus',
+        () => updateDoc(orderRef, {status}),
+        {
+          diagnostics: {
+            orderId,
+            status,
+            taqueriaId,
+          },
+          fallbackMessage: 'No se pudo actualizar el estado del pedido.',
+          timeoutMs: ORDER_WRITE_TIMEOUT_MS,
+        },
+      );
       return;
     }
 
-    const snap = await getDoc(orderRef);
-    if (!snap.exists) {
-      throw new Error('No se encontró el pedido.');
-    }
-    const order = mapOrder(snap.data() ?? {}, orderId);
-    const sanitized = clearOrderItemHighlights(order);
-    await updateDoc(orderRef, {
-      items: sanitized.items,
-      plates: sanitized.plates,
-      status: 'preparing',
-    });
+    await runFirestoreOperation(
+      'orders.updateOrderStatus.preparing.transaction',
+      () =>
+        runTransaction(firestoreModularDb, async transaction => {
+          const snap = await transaction.get(orderRef);
+          if (!snap.exists()) {
+            throw new Error('No se encontro el pedido.');
+          }
+
+          const order = mapOrder(snap.data() ?? {}, orderId);
+          const sanitized = clearOrderItemHighlights(order);
+          transaction.update(orderRef, {
+            items: sanitized.items,
+            plates: sanitized.plates,
+            status: 'preparing',
+          });
+        }),
+      {
+        diagnostics: {
+          orderId,
+          status,
+          taqueriaId,
+        },
+        fallbackMessage: 'No se pudo actualizar el estado del pedido.',
+        timeoutMs: ORDER_TRANSACTION_TIMEOUT_MS,
+      },
+    );
   },
 };

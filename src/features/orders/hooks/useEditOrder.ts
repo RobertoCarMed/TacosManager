@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../auth';
-import { Product } from '../../products/types';
-import { Order, Plate } from '../../../shared/types';
-import { ordersService } from '../services/ordersService';
+import {useCallback, useMemo, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
+import {useAuth} from '../../auth';
+import {Product} from '../../products/types';
+import {Order, Plate} from '../../../shared/types';
+import {ordersService} from '../services/ordersService';
 
 type NewOrderItem = {
   availableComplements: string[];
@@ -26,11 +27,11 @@ function generatePlateId(): string {
 }
 
 function emptyPlate(): NewPlate {
-  return { id: generatePlateId(), items: [] };
+  return {id: generatePlateId(), items: []};
 }
 
 export function useEditOrder(orderId: string) {
-  const { user } = useAuth();
+  const {user} = useAuth();
   const [existingOrder, setExistingOrder] = useState<Order | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
@@ -43,53 +44,49 @@ export function useEditOrder(orderId: string) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    console.log('useEffect', user?.taqueriaId, orderId);
-    if (!user?.taqueriaId || !orderId) {
-      setIsLoadingOrder(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      setIsLoadingOrder(true);
-      console.log("entra a getOrder")
-      setLoadError(null);
-      try {
-        console.log("entra a getOrder 3")
-        const order = await ordersService.getOrder(user.taqueriaId, orderId);
-        console.log("order", order);
-        if (cancelled) {
-          return;
-        }
-        if (!order) {
-          setLoadError('No se encontró el pedido.');
-          setExistingOrder(null);
-        } else {
-          setExistingOrder(order);
-        }
-      } catch (loadErr) {
-        console.log("catch getOrder", loadErr);
-        if (!cancelled) {
-          setLoadError(
-            loadErr instanceof Error
-              ? loadErr.message
-              : 'Error al cargar el pedido.',
-          );
-        }
-      } finally {
-        console.log("finally getOrder")
-        if (!cancelled) {
-          setIsLoadingOrder(false);
-        }
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.taqueriaId || !orderId) {
+        setIsLoadingOrder(false);
+        return undefined;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.taqueriaId, orderId]);
+      let cancelled = false;
+
+      (async () => {
+        setIsLoadingOrder(true);
+        setLoadError(null);
+        try {
+          const order = await ordersService.getOrder(user.taqueriaId, orderId);
+          if (cancelled) {
+            return;
+          }
+          if (!order) {
+            setLoadError('No se encontro el pedido.');
+            setExistingOrder(null);
+          } else {
+            setExistingOrder(order);
+          }
+        } catch (loadErr) {
+          if (!cancelled) {
+            setLoadError(
+              loadErr instanceof Error
+                ? loadErr.message
+                : 'Error al cargar el pedido.',
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            setIsLoadingOrder(false);
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.taqueriaId, orderId]),
+  );
 
   const addPlate = useCallback(() => {
     const newPlate: NewPlate = emptyPlate();
@@ -180,7 +177,7 @@ export function useEditOrder(orderId: string) {
     setPlates(current =>
       current.map(plate =>
         plate.id === plateId
-          ? { ...plate, items: plate.items.filter((_, i) => i !== itemIndex) }
+          ? {...plate, items: plate.items.filter((_, i) => i !== itemIndex)}
           : plate,
       ),
     );
@@ -203,7 +200,7 @@ export function useEditOrder(orderId: string) {
     }
     const nonEmptyNew: Plate[] = plates
       .filter(p => p.items.length > 0)
-      .map(p => ({ id: p.id, items: p.items }));
+      .map(p => ({id: p.id, items: p.items}));
 
     if (nonEmptyNew.length === 0) {
       setError('Agrega al menos un producto.');
@@ -213,15 +210,9 @@ export function useEditOrder(orderId: string) {
     try {
       setError(null);
       setIsLoading(true);
-      const latest = await ordersService.getOrder(user.taqueriaId, orderId);
-      if (!latest) {
-        setError('No se encontró el pedido.');
-        return false;
-      }
       await ordersService.appendPlatesToOrder(
         user.taqueriaId,
         orderId,
-        latest,
         nonEmptyNew,
       );
       return true;
@@ -231,6 +222,7 @@ export function useEditOrder(orderId: string) {
           ? saveErr.message
           : 'No se pudieron guardar los cambios.',
       );
+      return false;
     } finally {
       setIsLoading(false);
     }

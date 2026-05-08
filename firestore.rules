@@ -9,6 +9,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
+    function taqueriaPath(taqueriaId) {
+      return /databases/$(database)/documents/taquerias/$(taqueriaId);
+    }
+
     function hasUserDoc() {
       return signedIn() && exists(userPath());
     }
@@ -37,56 +41,251 @@ service cloud.firestore {
       return hasRole(['waiter']);
     }
 
+    function validString(value, minSize, maxSize) {
+      return value is string
+        && value.size() >= minSize
+        && value.size() <= maxSize;
+    }
+
+    function validUserRole(role) {
+      return role in ['waiter', 'cook'];
+    }
+
+    function validOrderStatus(status) {
+      return status in ['updated', 'pending', 'preparing', 'ready', 'completed'];
+    }
+
+    function isValidUser(data, userId) {
+      return data.keys().hasOnly([
+          'createdAt',
+          'email',
+          'id',
+          'name',
+          'role',
+          'taqueriaId',
+        ])
+        && data.keys().hasAll([
+          'createdAt',
+          'email',
+          'id',
+          'name',
+          'role',
+          'taqueriaId',
+        ])
+        && data.id == userId
+        && data.createdAt is number
+        && data.createdAt > 0
+        && validString(data.email, 5, 254)
+        && validString(data.name, 1, 80)
+        && validUserRole(data.role)
+        && validString(data.taqueriaId, 1, 128);
+    }
+
+    function userImmutableFieldsUnchanged(userId) {
+      return request.resource.data.id == userId
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.taqueriaId == resource.data.taqueriaId;
+    }
+
+    function canCreateUser(userId) {
+      return isOwnUser(userId)
+        && isValidUser(request.resource.data, userId)
+        && exists(taqueriaPath(request.resource.data.taqueriaId))
+        && (
+          request.resource.data.role == 'waiter'
+          || (
+            request.resource.data.role == 'cook'
+            && get(taqueriaPath(request.resource.data.taqueriaId)).data.ownerId == request.auth.uid
+          )
+        );
+    }
+
+    function isValidTaqueria(data, taqueriaId) {
+      return data.keys().hasOnly([
+          'address',
+          'city',
+          'createdAt',
+          'id',
+          'name',
+          'normalizedName',
+          'ownerId',
+          'state',
+        ])
+        && data.keys().hasAll([
+          'address',
+          'city',
+          'createdAt',
+          'id',
+          'name',
+          'normalizedName',
+          'ownerId',
+          'state',
+        ])
+        && data.id == taqueriaId
+        && data.createdAt is number
+        && data.createdAt > 0
+        && validString(data.address, 1, 160)
+        && validString(data.city, 1, 80)
+        && validString(data.name, 1, 100)
+        && validString(data.normalizedName, 1, 100)
+        && validString(data.ownerId, 1, 128)
+        && validString(data.state, 1, 80);
+    }
+
+    function taqueriaImmutableFieldsUnchanged(taqueriaId) {
+      return request.resource.data.id == taqueriaId
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.normalizedName == resource.data.normalizedName
+        && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasOnly([
+          'createdAt',
+          'createdBy',
+          'items',
+          'plates',
+          'status',
+          'table',
+        ])
+        && data.keys().hasAll([
+          'createdAt',
+          'createdBy',
+          'items',
+          'plates',
+          'status',
+          'table',
+        ])
+        && data.createdAt is number
+        && data.createdAt > 0
+        && validString(data.createdBy, 1, 128)
+        && data.items is list
+        && data.items.size() <= 200
+        && data.plates is list
+        && data.plates.size() <= 50
+        && validOrderStatus(data.status)
+        && validString(data.table, 1, 80);
+    }
+
+    function orderImmutableFieldsUnchanged() {
+      return request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy;
+    }
+
+    function waiterCanUpdateOwnOrder() {
+      return isWaiter()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'updated'
+        && request.resource.data.table == resource.data.table
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'items',
+          'plates',
+          'status',
+        ]);
+    }
+
+    function isValidProduct(data, productId, taqueriaId) {
+      return data.keys().hasOnly([
+          'complements',
+          'createdAt',
+          'id',
+          'imageUrl',
+          'name',
+          'price',
+          'taqueriaId',
+        ])
+        && data.keys().hasAll([
+          'complements',
+          'createdAt',
+          'id',
+          'name',
+          'price',
+          'taqueriaId',
+        ])
+        && data.id == productId
+        && data.taqueriaId == taqueriaId
+        && data.createdAt is number
+        && data.createdAt > 0
+        && validString(data.name, 1, 100)
+        && data.price is number
+        && data.price > 0
+        && data.price <= 100000
+        && data.complements is list
+        && data.complements.size() <= 3
+        && (
+          !data.keys().hasAny(['imageUrl'])
+          || validString(data.imageUrl, 1, 2048)
+        );
+    }
+
+    function productImmutableFieldsUnchanged(productId, taqueriaId) {
+      return request.resource.data.id == productId
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.taqueriaId == taqueriaId
+        && request.resource.data.taqueriaId == resource.data.taqueriaId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.complements == resource.data.complements;
+    }
+
     match /users/{userId} {
-      allow create: if isOwnUser(userId);
+      allow create: if canCreateUser(userId);
       allow read: if isOwnUser(userId);
-      allow update: if isOwnUser(userId);
+      allow update: if isOwnUser(userId)
+        && isValidUser(request.resource.data, userId)
+        && userImmutableFieldsUnchanged(userId);
       allow delete: if false;
     }
 
     match /taquerias/{taqueriaId} {
-      // para validar existencia de taqueria durante registro
       allow read: if true;
 
-      // crear taqueria al registrar cook/owner
       allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid;
+        && request.resource.data.ownerId == request.auth.uid
+        && isValidTaqueria(request.resource.data, taqueriaId);
 
-      allow update: if sameTaqueria(taqueriaId) && hasRole(['cook']);
+      allow update: if sameTaqueria(taqueriaId)
+        && isCook()
+        && isValidTaqueria(request.resource.data, taqueriaId)
+        && taqueriaImmutableFieldsUnchanged(taqueriaId);
       allow delete: if false;
 
       match /orders/{orderId} {
-        // Cook: puede leer todos los pedidos de su taqueria.
-        // Waiter: solo puede leer pedidos creados por si mismo.
         allow get, list: if sameTaqueria(taqueriaId) && (
-          isCook() ||
-          (isWaiter() && resource.data.createdBy == request.auth.uid)
+          isCook()
+          || (isWaiter() && resource.data.createdBy == request.auth.uid)
         );
 
-        // Waiter/Cook pueden crear pedidos en su taqueria.
-        // createdBy debe quedar fijo al uid autenticado.
         allow create: if sameTaqueria(taqueriaId)
           && hasRole(['waiter', 'cook'])
+          && isValidOrder(request.resource.data)
+          && request.resource.data.status == 'pending'
           && request.resource.data.createdBy == request.auth.uid;
 
-        // Cook puede actualizar cualquier pedido de su taqueria.
-        // Waiter solo puede actualizar sus pedidos y sin cambiar createdBy.
-        allow update: if sameTaqueria(taqueriaId) && (
-          (isCook() && request.resource.data.createdBy == resource.data.createdBy) ||
-          (
-            isWaiter()
-            && resource.data.createdBy == request.auth.uid
-            && request.resource.data.createdBy == resource.data.createdBy
-          )
-        );
+        allow update: if sameTaqueria(taqueriaId)
+          && isValidOrder(request.resource.data)
+          && orderImmutableFieldsUnchanged()
+          && (
+            isCook()
+            || waiterCanUpdateOwnOrder()
+          );
 
         allow delete: if false;
       }
 
       match /products/{productId} {
-        // WaiterOrdersScreen también consulta products
-        allow get, list: if sameTaqueria(taqueriaId) && hasRole(['waiter', 'cook']);
-        allow create, update: if sameTaqueria(taqueriaId) && hasRole(['cook']);
+        allow get, list: if sameTaqueria(taqueriaId)
+          && hasRole(['waiter', 'cook']);
+        allow create: if sameTaqueria(taqueriaId)
+          && isCook()
+          && isValidProduct(request.resource.data, productId, taqueriaId);
+        allow update: if sameTaqueria(taqueriaId)
+          && isCook()
+          && isValidProduct(request.resource.data, productId, taqueriaId)
+          && productImmutableFieldsUnchanged(productId, taqueriaId);
         allow delete: if false;
       }
     }

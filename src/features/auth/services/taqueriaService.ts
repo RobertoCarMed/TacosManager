@@ -2,14 +2,18 @@ import {
   FirebaseFirestoreTypes,
   collection,
   doc,
-  getDocs,
+  getDocsFromServer,
   limit,
   query,
   setDoc,
   where,
 } from '@react-native-firebase/firestore';
 import {firestoreModularDb} from '../../../services/firebase/config';
+import {runFirestoreOperation} from '../../../services/firebase/firestoreOperations';
 import {CreateTaqueriaParams, TaqueriaLookupResult, TaqueriaRecord} from '../types';
+
+const TAQUERIA_READ_TIMEOUT_MS = 12000;
+const TAQUERIA_WRITE_TIMEOUT_MS = 20000;
 
 function mapCreatedAt(
   value: FirebaseFirestoreTypes.Timestamp | number | string | undefined,
@@ -70,7 +74,18 @@ export const taqueriaService = {
       state: state.trim(),
     };
 
-    await setDoc(taqueriaReference, taqueria);
+    await runFirestoreOperation(
+      'taquerias.createTaqueria',
+      () => setDoc(taqueriaReference, taqueria),
+      {
+        diagnostics: {
+          ownerId,
+          taqueriaId: taqueriaReference.id,
+        },
+        fallbackMessage: 'No se pudo crear la taqueria.',
+        timeoutMs: TAQUERIA_WRITE_TIMEOUT_MS,
+      },
+    );
 
     return taqueria;
   },
@@ -83,7 +98,15 @@ export const taqueriaService = {
       where('normalizedName', '==', normalizedName),
       limit(1),
     );
-    const snapshot = await getDocs(taqueriaQuery);
+    const snapshot = await runFirestoreOperation(
+      'taquerias.findTaqueriaByName.server',
+      () => getDocsFromServer(taqueriaQuery),
+      {
+        diagnostics: {normalizedName},
+        fallbackMessage: 'No se pudo validar la taqueria.',
+        timeoutMs: TAQUERIA_READ_TIMEOUT_MS,
+      },
+    );
 
     return {
       normalizedName,

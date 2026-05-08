@@ -6,14 +6,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import {KitchenStackParamList} from '../../../navigation/types';
 import {Screen} from '../../../shared/components';
 import {theme} from '../../../shared/constants';
 import {Order} from '../../../shared/types';
-import {useAuth} from '../../auth';
 import {OrderCard} from '../components/OrderCard';
 import {useOrders} from '../../orders';
 import {OrderDateFilter} from '../../orders/services/ordersService';
@@ -59,11 +57,8 @@ function toTimestamp(value: string | number) {
 export function KitchenScreen({navigation}: Props) {
   const [dateFilter, setDateFilter] = useState<OrderDateFilter>('today');
   const {error, orders, updateOrderStatus} = useOrders({dateFilter});
-  const {user} = useAuth();
-  const {height, width} = useWindowDimensions();
   const [animatedOrders, setAnimatedOrders] = useState(orders);
   const hasSyncedInitialOrders = useRef(false);
-  const isTabletLandscape = width >= 768 && width >= height;
 
   useLayoutEffect(() => {
     if (!hasSyncedInitialOrders.current) {

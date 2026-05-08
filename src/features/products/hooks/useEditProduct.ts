@@ -2,7 +2,6 @@ import {useEffect, useMemo, useState} from 'react';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {useAuth} from '../../auth';
 import {productService} from '../services/productService';
-import {Product} from '../types';
 import {useProducts} from './useProducts';
 
 export function useEditProduct() {

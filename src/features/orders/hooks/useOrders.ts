@@ -1,4 +1,5 @@
-import {useCallback, useEffect} from 'react';
+import {useCallback} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {CreateOrderPayload, OrderStatus} from '../../../shared/types';
 import {useAppDispatch, useAppSelector} from '../../../store/hooks';
 import {useAuth} from '../../auth';
@@ -16,6 +17,7 @@ import {
 type UseOrdersOptions = {
   createdBy?: string;
   dateFilter?: OrderDateFilter;
+  subscribe?: boolean;
 };
 
 export function useOrders(options?: UseOrdersOptions) {
@@ -26,32 +28,42 @@ export function useOrders(options?: UseOrdersOptions) {
   const {user} = useAuth();
   const dateFilter = options?.dateFilter ?? 'today';
   const createdBy = options?.createdBy;
+  const shouldSubscribe = options?.subscribe ?? true;
 
-  useEffect(() => {
-    if (!user?.taqueriaId) {
-      dispatch(resetOrdersState());
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      if (!shouldSubscribe) {
+        return undefined;
+      }
 
-    dispatch(setOrdersLoading(true));
+      if (!user?.taqueriaId) {
+        dispatch(resetOrdersState());
+        return undefined;
+      }
 
-    // Components consume normalized state from Redux while Firestore sync stays encapsulated here.
-    const unsubscribe = ordersService.subscribeToOrders(
-      user.taqueriaId,
-      {
-        createdBy,
-        dateFilter,
-      },
-      nextOrders => {
-        dispatch(setOrders(nextOrders));
-      },
-      subscriptionError => {
-        dispatch(setOrdersError(subscriptionError.message));
-      },
-    );
+      dispatch(setOrdersLoading(true));
 
-    return unsubscribe;
-  }, [createdBy, dateFilter, dispatch, user?.taqueriaId]);
+      // Components consume normalized state from Redux while Firestore sync stays encapsulated here.
+      const unsubscribe = ordersService.subscribeToOrders(
+        user.taqueriaId,
+        {
+          createdBy,
+          dateFilter,
+        },
+        nextOrders => {
+          dispatch(setOrders(nextOrders));
+        },
+        subscriptionError => {
+          dispatch(setOrdersError(subscriptionError.message));
+        },
+      );
+
+      return () => {
+        unsubscribe();
+        dispatch(setOrdersLoading(false));
+      };
+    }, [createdBy, dateFilter, dispatch, shouldSubscribe, user?.taqueriaId]),
+  );
 
   const createOrder = useCallback(
     async (payload: CreateOrderPayload) => {

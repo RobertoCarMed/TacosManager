@@ -1,57 +1,51 @@
-import {useEffect, useState} from 'react';
+import {useCallback, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {Product} from '../types';
 import {productService} from '../services/productService';
 
 export function useProducts(taqueriaId?: string) {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() =>
+    taqueriaId ? productService.getCachedProducts(taqueriaId) : [],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadProducts() {
+  useFocusEffect(
+    useCallback(() => {
       if (!taqueriaId) {
-        if (isMounted) {
-          setProducts([]);
-          setError('No hay una taqueria activa.');
-          setIsLoading(false);
-        }
-        return;
+        setProducts([]);
+        setError('No hay una taqueria activa.');
+        setIsLoading(false);
+        return undefined;
       }
 
-      try {
-        if (isMounted) {
-          setIsLoading(true);
-          setError(null);
-        }
+      const cachedProducts = productService.getCachedProducts(taqueriaId);
+      if (cachedProducts.length > 0) {
+        setProducts(cachedProducts);
+      }
 
-        const nextProducts = await productService.fetchProducts(taqueriaId);
+      setIsLoading(cachedProducts.length === 0);
+      setError(null);
 
-        if (isMounted) {
+      const unsubscribe = productService.subscribeToProducts(
+        taqueriaId,
+        nextProducts => {
           setProducts(nextProducts);
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'No se pudieron cargar los productos.',
-          );
-        }
-      } finally {
-        if (isMounted) {
+          setError(null);
           setIsLoading(false);
-        }
-      }
-    }
+        },
+        subscriptionError => {
+          setError(subscriptionError.message);
+          setIsLoading(false);
+        },
+      );
 
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [taqueriaId]);
+      return () => {
+        unsubscribe();
+        setIsLoading(false);
+      };
+    }, [taqueriaId]),
+  );
 
   return {
     error,

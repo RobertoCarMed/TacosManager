@@ -3,15 +3,54 @@ import {
   FirebaseFirestoreTypes,
   collection,
   doc,
-  getDoc,
+  getDocFromServer,
   getDocs,
+  getDocsFromServer,
+  onSnapshot,
   orderBy,
   query,
   setDoc,
   updateDoc,
 } from '@react-native-firebase/firestore';
 import { firestoreModularDb } from '../../../services/firebase/config';
+import {
+  logFirestoreSnapshot,
+  logFirestoreSubscriptionEnd,
+  logFirestoreSubscriptionError,
+  logFirestoreSubscriptionStart,
+  runFirestoreOperation,
+  toFirestoreUserError,
+} from '../../../services/firebase/firestoreOperations';
 import { CreateProductPayload, Product, UpdateProductPayload } from '../types';
+
+type FetchProductsOptions = {
+  source?: 'cache-first' | 'server';
+};
+
+const PRODUCT_READ_TIMEOUT_MS = 12000;
+const PRODUCT_WRITE_TIMEOUT_MS = 20000;
+const productCache = new Map<string, Product[]>();
+
+function getProductsCollection(taqueriaId: string) {
+  return collection(
+    doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
+    'products',
+  );
+}
+
+function sortProducts(products: Product[]) {
+  return [...products].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function setCachedProducts(taqueriaId: string, products: Product[]) {
+  productCache.set(taqueriaId, sortProducts(products));
+}
+
+function updateCachedProduct(taqueriaId: string, product: Product) {
+  const current = productCache.get(taqueriaId) ?? [];
+  const withoutProduct = current.filter(item => item.id !== product.id);
+  setCachedProducts(taqueriaId, [...withoutProduct, product]);
+}
 
 function sanitizeFileName(name: string) {
   return name
@@ -70,11 +109,12 @@ function sanitizeComplements(complements: string[]) {
 }
 
 export const productService = {
+  getCachedProducts(taqueriaId: string): Product[] {
+    return productCache.get(taqueriaId) ?? [];
+  },
+
   async createProduct(payload: CreateProductPayload): Promise<Product> {
-    const productsCollection = collection(
-      doc(collection(firestoreModularDb, 'taquerias'), payload.taqueriaId),
-      'products',
-    );
+    const productsCollection = getProductsCollection(payload.taqueriaId);
     const productsReference = doc(productsCollection);
 
     let imageUrl: string | undefined;
@@ -105,29 +145,107 @@ export const productService = {
       ? { ...baseProduct, imageUrl }
       : baseProduct;
 
-    await setDoc(productsReference, product);
+    await runFirestoreOperation(
+      'products.createProduct',
+      () => setDoc(productsReference, product),
+      {
+        diagnostics: {
+          productId: productsReference.id,
+          taqueriaId: payload.taqueriaId,
+        },
+        fallbackMessage: 'No se pudo guardar el producto.',
+        timeoutMs: PRODUCT_WRITE_TIMEOUT_MS,
+      },
+    );
+
+    updateCachedProduct(payload.taqueriaId, product);
 
     return product;
   },
 
-  async fetchProducts(taqueriaId: string): Promise<Product[]> {
-    const productsCollection = collection(
-      doc(collection(firestoreModularDb, 'taquerias'), taqueriaId),
-      'products',
-    );
-    const productsQuery = query(productsCollection, orderBy('name', 'asc'));
-    const snapshot = await getDocs(productsQuery);
+  async fetchProducts(
+    taqueriaId: string,
+    options: FetchProductsOptions = {},
+  ): Promise<Product[]> {
+    const cachedProducts = productCache.get(taqueriaId);
+    if ((options.source ?? 'cache-first') === 'cache-first' && cachedProducts) {
+      return cachedProducts;
+    }
 
-    return snapshot.docs.map(snapshotItem =>
+    const productsCollection = getProductsCollection(taqueriaId);
+    const productsQuery = query(productsCollection, orderBy('name', 'asc'));
+    const snapshot = await runFirestoreOperation(
+      options.source === 'server'
+        ? 'products.fetchProducts.server'
+        : 'products.fetchProducts',
+      () =>
+        options.source === 'server'
+          ? getDocsFromServer(productsQuery)
+          : getDocs(productsQuery),
+      {
+        diagnostics: {
+          source: options.source ?? 'cache-first',
+          taqueriaId,
+        },
+        fallbackMessage: 'No se pudieron cargar los productos.',
+        timeoutMs: PRODUCT_READ_TIMEOUT_MS,
+      },
+    );
+
+    const products = snapshot.docs.map(snapshotItem =>
       mapProduct(snapshotItem.id, snapshotItem.data()),
     );
+    setCachedProducts(taqueriaId, products);
+
+    return productCache.get(taqueriaId) ?? products;
+  },
+
+  subscribeToProducts(
+    taqueriaId: string,
+    onData: (products: Product[]) => void,
+    onError: (error: Error) => void,
+  ) {
+    const cachedProducts = productCache.get(taqueriaId);
+    if (cachedProducts) {
+      onData(cachedProducts);
+    }
+
+    const productsQuery = query(
+      getProductsCollection(taqueriaId),
+      orderBy('name', 'asc'),
+    );
+    const subscriptionName = 'products.subscribeToProducts';
+    const subscriptionStartedAt = logFirestoreSubscriptionStart(
+      subscriptionName,
+      {taqueriaId},
+    );
+
+    const unsubscribe = onSnapshot(
+      productsQuery,
+      snapshot => {
+        logFirestoreSnapshot(subscriptionName, subscriptionStartedAt, snapshot);
+        const products = snapshot.docs.map(snapshotItem =>
+          mapProduct(snapshotItem.id, snapshotItem.data()),
+        );
+        setCachedProducts(taqueriaId, products);
+        onData(productCache.get(taqueriaId) ?? products);
+      },
+      error => {
+        logFirestoreSubscriptionError(subscriptionName, error);
+        onError(
+          toFirestoreUserError(error, 'No se pudieron sincronizar los productos.'),
+        );
+      },
+    );
+
+    return () => {
+      logFirestoreSubscriptionEnd(subscriptionName);
+      unsubscribe();
+    };
   },
 
   async updateProduct(payload: UpdateProductPayload): Promise<Product> {
-    const productsCollection = collection(
-      doc(collection(firestoreModularDb, 'taquerias'), payload.taqueriaId),
-      'products',
-    );
+    const productsCollection = getProductsCollection(payload.taqueriaId);
     const productRef = doc(productsCollection, payload.productId);
 
     let imageUrl = payload.existingImageUrl;
@@ -159,21 +277,57 @@ export const productService = {
       price: payload.price,
     };
 
-    // If we have a new image URL or kept the old one
-    if (imageUrl !== payload.existingImageUrl) {
+    if (imageUrl && imageUrl !== payload.existingImageUrl) {
       updates.imageUrl = imageUrl;
     }
 
-    await updateDoc(productRef, updates);
+    await runFirestoreOperation(
+      'products.updateProduct',
+      () => updateDoc(productRef, updates),
+      {
+        diagnostics: {
+          productId: payload.productId,
+          taqueriaId: payload.taqueriaId,
+        },
+        fallbackMessage: 'No se pudo actualizar el producto.',
+        timeoutMs: PRODUCT_WRITE_TIMEOUT_MS,
+      },
+    );
 
-    const updatedDoc = await getDoc(productRef);
-    if (!updatedDoc.exists || !updatedDoc.data()) {
+    const cachedProduct = productCache
+      .get(payload.taqueriaId)
+      ?.find(product => product.id === payload.productId);
+
+    if (cachedProduct) {
+      const updatedProduct: Product = {
+        ...cachedProduct,
+        ...updates,
+      };
+      updateCachedProduct(payload.taqueriaId, updatedProduct);
+      return updatedProduct;
+    }
+
+    const updatedDoc = await runFirestoreOperation(
+      'products.updateProduct.readBack.server',
+      () => getDocFromServer(productRef),
+      {
+        diagnostics: {
+          productId: payload.productId,
+          taqueriaId: payload.taqueriaId,
+        },
+        fallbackMessage: 'No se encontro el producto actualizado.',
+        timeoutMs: PRODUCT_READ_TIMEOUT_MS,
+      },
+    );
+    if (!updatedDoc.exists() || !updatedDoc.data()) {
       throw new Error('No se encontro el producto actualizado.');
     }
 
-    return mapProduct(
+    const updatedProduct = mapProduct(
       updatedDoc.id,
       updatedDoc.data() as FirebaseFirestoreTypes.DocumentData,
     );
+    updateCachedProduct(payload.taqueriaId, updatedProduct);
+    return updatedProduct;
   },
 };

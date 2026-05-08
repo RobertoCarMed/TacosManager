@@ -7,7 +7,18 @@ import {
 } from '@react-native-firebase/firestore';
 import {APP_CONFIG} from '../../../shared/constants';
 import {firestoreModularDb} from '../../../services/firebase/config';
+import {
+  logFirestoreSnapshot,
+  logFirestoreSubscriptionEnd,
+  logFirestoreSubscriptionError,
+  logFirestoreSubscriptionStart,
+  runFirestoreOperation,
+  toFirestoreUserError,
+} from '../../../services/firebase/firestoreOperations';
 import {CreateUserProfileParams, RegisteredUserProfile} from '../types';
+
+const USER_PROFILE_READ_TIMEOUT_MS = 12000;
+const USER_PROFILE_WRITE_TIMEOUT_MS = 20000;
 
 function mapCreatedAt(
   value: FirebaseFirestoreTypes.Timestamp | number | string | undefined,
@@ -48,14 +59,27 @@ export const userService = {
   }: CreateUserProfileParams) {
     const createdAt = Date.now();
     const userRef = doc(firestoreModularDb, 'users', id);
-    await setDoc(userRef, {
-      createdAt,
-      email: email.trim().toLowerCase(),
-      id,
-      name: name.trim(),
-      role,
-      taqueriaId,
-    });
+    await runFirestoreOperation(
+      'users.createUserProfile',
+      () =>
+        setDoc(userRef, {
+          createdAt,
+          email: email.trim().toLowerCase(),
+          id,
+          name: name.trim(),
+          role,
+          taqueriaId,
+        }),
+      {
+        diagnostics: {
+          role,
+          taqueriaId,
+          userId: id,
+        },
+        fallbackMessage: 'No se pudo crear el perfil de usuario.',
+        timeoutMs: USER_PROFILE_WRITE_TIMEOUT_MS,
+      },
+    );
 
     return {
       createdAt,
@@ -73,10 +97,21 @@ export const userService = {
     onError: (error: Error) => void,
   ) {
     const userRef = doc(firestoreModularDb, 'users', userId);
-    return onSnapshot(
+    const subscriptionName = 'users.subscribeToUserProfile';
+    const subscriptionStartedAt = logFirestoreSubscriptionStart(
+      subscriptionName,
+      {userId},
+    );
+
+    const unsubscribe = onSnapshot(
       userRef,
       snapshot => {
-        if (!snapshot.exists) {
+        const exists = snapshot.exists();
+        logFirestoreSnapshot(subscriptionName, subscriptionStartedAt, {
+          docs: exists ? [snapshot.id] : [],
+          metadata: snapshot.metadata,
+        });
+        if (!exists) {
           onData(null);
           return;
         }
@@ -91,16 +126,32 @@ export const userService = {
         onData(mapUserDocument(snapshot.id, data));
       },
       error => {
-        onError(error);
+        logFirestoreSubscriptionError(subscriptionName, error);
+        onError(
+          toFirestoreUserError(error, 'No se pudo sincronizar el perfil.'),
+        );
       },
     );
+
+    return () => {
+      logFirestoreSubscriptionEnd(subscriptionName);
+      unsubscribe();
+    };
   },
 
   async getUserById(userId: string): Promise<RegisteredUserProfile | null> {
     const userRef = doc(firestoreModularDb, 'users', userId);
-    const snapshot = await getDoc(userRef);
+    const snapshot = await runFirestoreOperation(
+      'users.getUserById',
+      () => getDoc(userRef),
+      {
+        diagnostics: {userId},
+        fallbackMessage: 'No se pudo cargar el perfil de usuario.',
+        timeoutMs: USER_PROFILE_READ_TIMEOUT_MS,
+      },
+    );
 
-    if (!snapshot.exists) {
+    if (!snapshot.exists()) {
       return null;
     }
 
