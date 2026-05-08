@@ -119,7 +119,7 @@ export function OrderCard({
         >
           {order.plates.map((plate, plateIndex) => (
             <View
-              key={plate.id ?? `plate-${plateIndex}`}
+              key={plate.id ?? `${order.id}-plate-${plateIndex}`}
               style={[
                 styles.plateSection,
                 isKitchen ? styles.plateSectionKitchen : null,
@@ -139,14 +139,15 @@ export function OrderCard({
                   isKitchen ? styles.itemsContainerKitchen : null,
                 ]}
               >
-                {sortItemsByNewFlag(plate.items).map(({item, originalIndex}) => {
+                {sortItemsByNewFlag(plate.items).map(({item}, index) => {
                   const unitPrice = getSafePrice(item.price);
                   const subtotal = unitPrice * item.quantity;
+                  const itemKey = `${order.id}-${plate.id ?? plateIndex}-${index}-${item.name}`;
 
                   if (isKitchen) {
                     return (
                       <Text
-                        key={item.id ?? `${item.name}-${originalIndex}`}
+                        key={itemKey}
                         style={[
                           styles.itemText,
                           isKitchen ? styles.itemTextKitchen : null,
@@ -159,7 +160,7 @@ export function OrderCard({
 
                   return (
                     <View
-                      key={item.id ?? `${item.name}-${originalIndex}`}
+                      key={itemKey}
                       style={styles.itemRowWaiter}
                     >
                       <Text style={styles.itemLeftText}>
@@ -182,14 +183,15 @@ export function OrderCard({
             isKitchen ? styles.itemsContainerKitchen : null,
           ]}
         >
-          {sortItemsByNewFlag(order.items).map(({item, originalIndex}) => {
+          {sortItemsByNewFlag(order.items).map(({item}, index) => {
             const unitPrice = getSafePrice(item.price);
             const subtotal = unitPrice * item.quantity;
+            const itemKey = `${order.id}-flat-${index}-${item.name}`;
 
             if (isKitchen) {
               return (
                 <Text
-                  key={item.id ?? `${item.name}-${originalIndex}`}
+                  key={itemKey}
                   style={[
                     styles.itemText,
                     isKitchen ? styles.itemTextKitchen : null,
@@ -202,7 +204,7 @@ export function OrderCard({
 
             return (
               <View
-                key={item.id ?? `${item.name}-${originalIndex}`}
+                key={itemKey}
                 style={styles.itemRowWaiter}
               >
                 <Text style={styles.itemLeftText}>

@@ -227,22 +227,19 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
 
                 return (
                   <View
-                    key={plate.id}
+                    key={plate.id ?? `${order.id}-plate-${plateOriginalIndex}`}
                     style={styles.plateBlock}
                   >
                     <Text style={styles.plateTitle}>PLATO {plateOriginalIndex + 1}</Text>
-                    {sortedPlateItems.map(({ item, originalIndex }, sortedIndex) => {
+                    {sortedPlateItems.map(({ item }, sortedIndex) => {
+                      const itemKey = `${order.id}-${plate.id ?? plateOriginalIndex}-${sortedIndex}-${item.name}`;
                       return (
                         <React.Fragment
-                          key={
-                            item.id ??
-                            `${order.id}-${plate.id}-${item.name}-${originalIndex}`
-                          }
+                          key={itemKey}
                         >
                           {renderItem(
                             item,
-                            item.id ??
-                              `${order.id}-${plate.id}-${item.name}-${originalIndex}`,
+                            itemKey,
                           )}
                         </React.Fragment>
                       );
@@ -258,14 +255,15 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
 
             return (
               <View style={styles.plateBlock}>
-                {sortedOrderItems.map(({ item, originalIndex }) => {
+                {sortedOrderItems.map(({ item }, sortedIndex) => {
+                  const itemKey = `${order.id}-flat-${sortedIndex}-${item.name}`;
                   return (
                     <React.Fragment
-                      key={item.id ?? `${order.id}-${item.name}-${originalIndex}`}
+                      key={itemKey}
                     >
                       {renderItem(
                         item,
-                        item.id ?? `${order.id}-${item.name}-${originalIndex}`,
+                        itemKey,
                       )}
                     </React.Fragment>
                   );
