@@ -1,4 +1,4 @@
-import {AppUser, UserRole} from '../../shared/types';
+import {AppUser, ApiTaqueria, UserRole} from '../../shared/types';
 
 export type RegistrationRole = UserRole;
 
@@ -22,6 +22,7 @@ export type RegisterPayload = {
   taqueriaName: string;
 };
 
+// Legacy types — kept for Firestore compatibility during 4.5.x migration
 export type CreateTaqueriaParams = {
   city: string;
   name: string;
@@ -59,3 +60,36 @@ export type RegisteredUserProfile = AppUser & {
   createdAt: number;
   email: string;
 };
+
+// ─── API types for NestJS backend ────────────────────────────────────────────
+
+export type ApiTaqueriaMatch = {
+  id: string;
+  name: string;
+  restaurantCode: string;
+};
+
+export type ApiRegisterPhase1Result = {
+  taqueriaMatches: number;
+  canCreateNewTaqueria?: boolean;
+  canJoinExistingTaqueria?: boolean;
+  requiresTaqueriaInfo?: boolean;
+  taquerias?: ApiTaqueriaMatch[];
+  message: string;
+};
+
+export type ApiAuthResponse = {
+  accessToken: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: 'WAITER' | 'COOK';
+    taqueriaId: string;
+  };
+  taqueria: ApiTaqueria;
+};
+
+export type RegisterAction =
+  | {type: 'join'; restaurantCode: string}
+  | {type: 'create'};

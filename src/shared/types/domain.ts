@@ -9,6 +9,17 @@ export type AppUser = {
   businessAddress?: string;
 };
 
+export type ApiTaqueria = {
+  id: string;
+  name: string;
+  restaurantCode: string;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  createdAt: string;
+};
+
 export type OrderStatus =
   | 'updated'
   | 'pending'

@@ -1,20 +1,18 @@
 import {useCallback, useState} from 'react';
-import {FirebaseAuthTypes} from '@react-native-firebase/auth';
+import {AppUser, ApiTaqueria} from '../../../shared/types';
 import {authService} from '../services/authService';
-import {taqueriaService} from '../services/taqueriaService';
-import {userService} from '../services/userService';
+import {useAuth} from '../context/AuthContext';
 import {
+  ApiRegisterPhase1Result,
+  RegisterAction,
   RegisterFormValues,
-  RegisterPayload,
-  RegisteredUserProfile,
-  TaqueriaLookupResult,
 } from '../types';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
-function buildValidationError(values: RegisterFormValues) {
+function buildBaseValidationError(values: RegisterFormValues) {
   if (!values.name.trim()) {
     return 'El nombre es obligatorio.';
   }
@@ -24,19 +22,19 @@ function buildValidationError(values: RegisterFormValues) {
   }
 
   if (!isValidEmail(values.email)) {
-    return 'Captura un correo valido.';
+    return 'Captura un correo válido.';
   }
 
   if (!values.password) {
-    return 'La contrasena es obligatoria.';
+    return 'La contraseña es obligatoria.';
   }
 
   if (values.password.length < 6) {
-    return 'La contrasena debe tener al menos 6 caracteres.';
+    return 'La contraseña debe tener al menos 6 caracteres.';
   }
 
   if (values.password !== values.confirmPassword) {
-    return 'Las contrasenas no coinciden.';
+    return 'Las contraseñas no coinciden.';
   }
 
   if (!values.role) {
@@ -44,7 +42,7 @@ function buildValidationError(values: RegisterFormValues) {
   }
 
   if (!values.taqueriaName.trim()) {
-    return 'El nombre de la taqueria es obligatorio.';
+    return 'El nombre de la taquería es obligatorio.';
   }
 
   return null;
@@ -52,159 +50,118 @@ function buildValidationError(values: RegisterFormValues) {
 
 function buildCreateTaqueriaError(values: RegisterFormValues) {
   if (!values.address.trim()) {
-    return 'La direccion es obligatoria para crear una taqueria.';
+    return 'La dirección es obligatoria para crear una taquería.';
   }
 
   if (!values.city.trim()) {
-    return 'La ciudad es obligatoria para crear una taqueria.';
+    return 'La ciudad es obligatoria para crear una taquería.';
   }
 
   if (!values.state.trim()) {
-    return 'El estado es obligatorio para crear una taqueria.';
+    return 'El estado es obligatorio para crear una taquería.';
   }
 
   return null;
 }
 
-function normalizePayload(values: RegisterFormValues): RegisterPayload {
-  return {
-    email: values.email.trim().toLowerCase(),
-    name: values.name.trim(),
-    password: values.password,
-    role: values.role as RegisterPayload['role'],
-    taqueriaName: values.taqueriaName.trim(),
-  };
-}
-
 export function useRegister() {
+  const {signIn} = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [taqueriaLookup, setTaqueriaLookup] = useState<TaqueriaLookupResult | null>(null);
+  const [phase1Result, setPhase1Result] =
+    useState<ApiRegisterPhase1Result | null>(null);
 
-  const inspectTaqueria = useCallback(async (taqueriaName: string) => {
-    if (!taqueriaName.trim()) {
-      const message = 'El nombre de la taqueria es obligatorio.';
-      setError(message);
-      return null;
-    }
-
-    try {
-      setError(null);
-      setIsLoading(true);
-
-      const lookup = await taqueriaService.findTaqueriaByName(taqueriaName);
-      setTaqueriaLookup(lookup);
-
-      return lookup;
-    } catch (lookupError) {
-      const message =
-        lookupError instanceof Error
-          ? lookupError.message
-          : 'No se pudo validar la taqueria.';
-
-      setError(message);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const resetTaqueriaLookup = useCallback(() => {
-    setTaqueriaLookup(null);
-    setError(null);
-  }, []);
-
-  const register = useCallback(
+  const inspectTaqueria = useCallback(
     async (values: RegisterFormValues) => {
-      const validationError = buildValidationError(values);
-
+      const validationError = buildBaseValidationError(values);
       if (validationError) {
         setError(validationError);
         return null;
       }
 
-      const payload = normalizePayload(values);
-      let credential: FirebaseAuthTypes.UserCredential | null = null;
-
       try {
         setError(null);
         setIsLoading(true);
 
-        const lookup =
-          taqueriaLookup?.normalizedName ===
-          taqueriaService.normalizeTaqueriaName(values.taqueriaName)
-            ? taqueriaLookup
-            : await taqueriaService.findTaqueriaByName(values.taqueriaName);
+        const result = await authService.registerDiscoverTaqueria(values);
+        setPhase1Result(result);
 
-        setTaqueriaLookup(lookup);
-
-        if (!lookup.taqueria) {
-          const taqueriaValidationError = buildCreateTaqueriaError(values);
-
-          if (taqueriaValidationError) {
-            setError(taqueriaValidationError);
-            return null;
-          }
-        }
-
-        credential = await authService.createUserWithEmailAndPassword(
-          payload.email,
-          payload.password,
+        return result;
+      } catch (lookupError) {
+        setError(
+          lookupError instanceof Error
+            ? lookupError.message
+            : 'No se pudo validar la taquería.',
         );
-
-        const taqueria =
-          lookup.taqueria ??
-          (await taqueriaService.createTaqueria({
-            address: values.address.trim(),
-            city: values.city.trim(),
-            name: payload.taqueriaName,
-            normalizedName: lookup.normalizedName,
-            ownerId: credential.user.uid,
-            state: values.state.trim(),
-          }));
-
-        const registeredProfile: RegisteredUserProfile =
-          await userService.createUserProfile({
-            email: payload.email,
-            id: credential.user.uid,
-            name: payload.name,
-            role: payload.role,
-            taqueriaId: taqueria.id,
-          });
-
-        authService.setSessionUser(registeredProfile);
-
-        return registeredProfile;
-      } catch (registrationError) {
-        const message =
-          registrationError instanceof Error
-            ? registrationError.message
-            : 'No se pudo completar el registro.';
-
-        setError(message);
-
-        if (credential?.user) {
-          try {
-            await authService.deleteUser(credential.user);
-          } catch {
-            // Best-effort cleanup if Firestore creation fails after Auth succeeds.
-          }
-        }
-
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [taqueriaLookup],
+    [],
+  );
+
+  const resetSearch = useCallback(() => {
+    setPhase1Result(null);
+    setError(null);
+  }, []);
+
+  const register = useCallback(
+    async (
+      values: RegisterFormValues,
+      action: RegisterAction,
+    ): Promise<boolean> => {
+      const baseError = buildBaseValidationError(values);
+      if (baseError) {
+        setError(baseError);
+        return false;
+      }
+
+      if (action.type === 'create') {
+        const taqueriaError = buildCreateTaqueriaError(values);
+        if (taqueriaError) {
+          setError(taqueriaError);
+          return false;
+        }
+      }
+
+      try {
+        setError(null);
+        setIsLoading(true);
+
+        let result: {user: AppUser; taqueria: ApiTaqueria};
+
+        if (action.type === 'join') {
+          result = await authService.registerJoinTaqueria(
+            values,
+            action.restaurantCode,
+          );
+        } else {
+          result = await authService.registerCreateTaqueria(values);
+        }
+
+        signIn(result.user, result.taqueria);
+        return true;
+      } catch (registrationError) {
+        setError(
+          registrationError instanceof Error
+            ? registrationError.message
+            : 'No se pudo completar el registro.',
+        );
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [signIn],
   );
 
   return {
     error,
     inspectTaqueria,
     isLoading,
+    phase1Result,
     register,
-    resetTaqueriaLookup,
-    taqueriaLookup,
+    resetSearch,
   };
 }

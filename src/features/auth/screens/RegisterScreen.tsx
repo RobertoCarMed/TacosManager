@@ -1,6 +1,11 @@
 import React, {useMemo, useState} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {StyleSheet, Text, View} from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {AuthStackParamList} from '../../../navigation/types';
 import {AppButton, Screen} from '../../../shared/components';
 import {theme} from '../../../shared/constants';
@@ -8,11 +13,11 @@ import {useResponsive} from '../../../shared/hooks';
 import {AuthInput} from '../components/AuthInput';
 import {RoleSelector} from '../components/RoleSelector';
 import {useRegister} from '../hooks/useRegister';
-import {RegisterFormValues} from '../types';
+import {ApiTaqueriaMatch, RegisterFormValues} from '../types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 type FieldErrors = Partial<Record<keyof RegisterFormValues, string>>;
-type RegisterStage = 'form' | 'existing-taqueria' | 'create-taqueria';
+type RegisterStage = 'form' | 'matches-found' | 'create-taqueria';
 
 const initialValues: RegisterFormValues = {
   address: '',
@@ -35,30 +40,30 @@ function getBaseFieldErrors(values: RegisterFormValues): FieldErrors {
     confirmPassword:
       !values.confirmPassword || values.password === values.confirmPassword
         ? undefined
-        : 'Las contrasenas no coinciden.',
+        : 'Las contraseñas no coinciden.',
     email:
       !values.email.trim()
         ? 'Captura un correo.'
         : isValidEmail(values.email)
           ? undefined
-          : 'Correo invalido.',
+          : 'Correo inválido.',
     name: values.name.trim() ? undefined : 'Captura el nombre.',
     password:
       !values.password
-        ? 'Captura una contrasena.'
+        ? 'Captura una contraseña.'
         : values.password.length >= 6
           ? undefined
-          : 'Minimo 6 caracteres.',
+          : 'Mínimo 6 caracteres.',
     role: values.role ? undefined : 'Selecciona un rol.',
     taqueriaName: values.taqueriaName.trim()
       ? undefined
-      : 'Captura el nombre de la taqueria.',
+      : 'Captura el nombre de la taquería.',
   };
 }
 
 function getTaqueriaFieldErrors(values: RegisterFormValues): FieldErrors {
   return {
-    address: values.address.trim() ? undefined : 'Captura la direccion.',
+    address: values.address.trim() ? undefined : 'Captura la dirección.',
     city: values.city.trim() ? undefined : 'Captura la ciudad.',
     state: values.state.trim() ? undefined : 'Captura el estado.',
   };
@@ -68,18 +73,22 @@ export function RegisterScreen({navigation}: Props) {
   const [values, setValues] = useState<RegisterFormValues>(initialValues);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [stage, setStage] = useState<RegisterStage>('form');
+  const [selectedRestaurantCode, setSelectedRestaurantCode] = useState<string | null>(null);
   const {
     error,
     inspectTaqueria,
     isLoading,
+    phase1Result,
     register,
-    resetTaqueriaLookup,
-    taqueriaLookup,
+    resetSearch,
   } = useRegister();
   const {isTablet} = useResponsive();
 
   const title = useMemo(
-    () => (isTablet ? 'Registra a tu equipo y enlazalo a una taqueria' : 'Registro'),
+    () =>
+      isTablet
+        ? 'Registra a tu equipo y enlázalo a una taquería'
+        : 'Registro',
     [isTablet],
   );
 
@@ -98,7 +107,8 @@ export function RegisterScreen({navigation}: Props) {
 
     if (key === 'taqueriaName') {
       setStage('form');
-      resetTaqueriaLookup();
+      setSelectedRestaurantCode(null);
+      resetSearch();
     }
   };
 
@@ -110,46 +120,90 @@ export function RegisterScreen({navigation}: Props) {
       return;
     }
 
-    const lookup = await inspectTaqueria(values.taqueriaName);
+    const result = await inspectTaqueria(values);
 
-    if (!lookup) {
+    if (!result) {
       return;
     }
 
-    setStage(lookup.taqueria ? 'existing-taqueria' : 'create-taqueria');
+    if (result.taqueriaMatches === 0) {
+      setStage('create-taqueria');
+    } else {
+      setStage('matches-found');
+      // Auto-select when there's only one match
+      if (result.taquerias?.length === 1) {
+        setSelectedRestaurantCode(result.taquerias[0].restaurantCode);
+      }
+    }
   };
 
-  const handleRegister = async () => {
+  const handleJoin = async () => {
+    if (!selectedRestaurantCode) {
+      return;
+    }
+
+    const nextFieldErrors = getBaseFieldErrors(values);
+    setFieldErrors(nextFieldErrors);
+    if (Object.values(nextFieldErrors).some(Boolean)) {
+      return;
+    }
+
+    const success = await register(values, {
+      type: 'join',
+      restaurantCode: selectedRestaurantCode,
+    });
+
+    if (success) {
+      handleSafeGoBack();
+    }
+  };
+
+  const handleCreate = async () => {
     const nextFieldErrors = {
       ...getBaseFieldErrors(values),
-      ...(stage === 'create-taqueria' ? getTaqueriaFieldErrors(values) : {}),
+      ...getTaqueriaFieldErrors(values),
     };
-
     setFieldErrors(nextFieldErrors);
 
     if (Object.values(nextFieldErrors).some(Boolean)) {
       return;
     }
 
-    const registeredUser = await register(values);
+    const success = await register(values, {type: 'create'});
 
-    if (registeredUser) {
+    if (success) {
       handleSafeGoBack();
     }
   };
 
-  const primaryLabel =
-    stage === 'form' ? 'Continuar' : taqueriaLookup?.taqueria ? 'Unirme a la taqueria' : 'Crear cuenta';
+  const handleSelectTaqueria = (match: ApiTaqueriaMatch) => {
+    setSelectedRestaurantCode(prev =>
+      prev === match.restaurantCode ? null : match.restaurantCode,
+    );
+  };
+
+  const handleGoToCreate = () => {
+    setStage('create-taqueria');
+    setSelectedRestaurantCode(null);
+  };
+
+  const handleResetSearch = () => {
+    setStage('form');
+    setSelectedRestaurantCode(null);
+    resetSearch();
+  };
 
   return (
     <Screen contentStyle={styles.screen} scrollable>
       <View style={[styles.card, isTablet && styles.cardTablet]}>
-        <Text style={styles.eyebrow}>Registro multi-taqueria</Text>
+        <Text style={styles.eyebrow}>Registro multi-taquería</Text>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.subtitle}>
-          Crea un usuario nuevo y vincularlo a una taqueria existente o crea una nueva en el mismo flujo.
+          Crea un usuario nuevo y vincúlalo a una taquería existente o crea una
+          nueva en el mismo flujo.
         </Text>
 
+        {/* Base form — always visible */}
         <AuthInput
           autoCapitalize="words"
           error={fieldErrors.name}
@@ -172,18 +226,18 @@ export function RegisterScreen({navigation}: Props) {
 
         <AuthInput
           error={fieldErrors.password}
-          label="Contrasena"
+          label="Contraseña"
           onChangeText={text => handleChange('password', text)}
-          placeholder="Minimo 6 caracteres"
+          placeholder="Mínimo 6 caracteres"
           secureTextEntry
           value={values.password}
         />
 
         <AuthInput
           error={fieldErrors.confirmPassword}
-          label="Confirmar contrasena"
+          label="Confirmar contraseña"
           onChangeText={text => handleChange('confirmPassword', text)}
-          placeholder="Repite la contrasena"
+          placeholder="Repite la contraseña"
           secureTextEntry
           value={values.confirmPassword}
         />
@@ -197,34 +251,52 @@ export function RegisterScreen({navigation}: Props) {
         <AuthInput
           autoCapitalize="words"
           error={fieldErrors.taqueriaName}
-          label="Nombre de la taqueria"
+          label="Nombre de la taquería"
           onChangeText={text => handleChange('taqueriaName', text)}
-          placeholder="Taqueria Los Compas"
+          placeholder="Taquería Los Compas"
           value={values.taqueriaName}
         />
 
-        {stage === 'existing-taqueria' && taqueriaLookup?.taqueria ? (
-          <View style={styles.noticeCard}>
-            <Text style={styles.noticeTitle}>Taqueria encontrada</Text>
-            <Text style={styles.noticeText}>
-              Se te vinculara a {taqueriaLookup.taqueria.name} en {taqueriaLookup.taqueria.city}, {taqueriaLookup.taqueria.state}.
+        {/* Stage: matches-found — selectable taqueria list */}
+        {stage === 'matches-found' && phase1Result?.taquerias ? (
+          <View style={styles.matchesSection}>
+            <Text style={styles.sectionTitle}>
+              {phase1Result.taquerias.length === 1
+                ? 'Taquería encontrada'
+                : `${phase1Result.taquerias.length} taquerías encontradas`}
             </Text>
+            <Text style={styles.sectionText}>{phase1Result.message}</Text>
+
+            {phase1Result.taquerias.map(match => (
+              <TouchableOpacity
+                key={match.restaurantCode}
+                onPress={() => handleSelectTaqueria(match)}
+                style={[
+                  styles.taqueriaCard,
+                  selectedRestaurantCode === match.restaurantCode &&
+                    styles.taqueriaCardSelected,
+                ]}>
+                <Text style={styles.taqueriaName}>{match.name}</Text>
+                <Text style={styles.taqueriaCode}>{match.restaurantCode}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         ) : null}
 
+        {/* Stage: create-taqueria — new taqueria fields */}
         {stage === 'create-taqueria' ? (
           <View style={styles.stepTwoSection}>
-            <Text style={styles.sectionTitle}>Nueva taqueria</Text>
+            <Text style={styles.sectionTitle}>Nueva taquería</Text>
             <Text style={styles.sectionText}>
-              No encontramos una coincidencia. Completa la informacion para crearla.
+              Completa la información para registrar la taquería.
             </Text>
 
             <AuthInput
               error={fieldErrors.address}
-              label="Direccion"
+              label="Dirección"
               multiline
               onChangeText={text => handleChange('address', text)}
-              placeholder="Calle, numero y colonia"
+              placeholder="Calle, número y colonia"
               style={styles.multilineInput}
               value={values.address}
             />
@@ -249,28 +321,57 @@ export function RegisterScreen({navigation}: Props) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <AppButton
-          label={primaryLabel}
-          loading={isLoading}
-          onPress={stage === 'form' ? handleContinue : handleRegister}
-        />
-
-        {stage !== 'form' ? (
-          <AppButton
-            label="Cambiar taqueria"
-            onPress={() => {
-              setStage('form');
-              resetTaqueriaLookup();
-            }}
-            variant="secondary"
-          />
+        {/* Action buttons by stage */}
+        {stage === 'form' ? (
+          <>
+            <AppButton
+              label="Continuar"
+              loading={isLoading}
+              onPress={handleContinue}
+            />
+            <AppButton
+              label="Ya tengo acceso"
+              onPress={handleSafeGoBack}
+              variant="secondary"
+            />
+          </>
         ) : null}
 
-        <AppButton
-          label="Ya tengo acceso"
-          onPress={handleSafeGoBack}
-          variant="secondary"
-        />
+        {stage === 'matches-found' ? (
+          <>
+            <AppButton
+              disabled={!selectedRestaurantCode}
+              label="Unirme a esta taquería"
+              loading={isLoading}
+              onPress={handleJoin}
+            />
+            <AppButton
+              label="Crear nueva taquería"
+              onPress={handleGoToCreate}
+              variant="secondary"
+            />
+            <AppButton
+              label="Cambiar búsqueda"
+              onPress={handleResetSearch}
+              variant="secondary"
+            />
+          </>
+        ) : null}
+
+        {stage === 'create-taqueria' ? (
+          <>
+            <AppButton
+              label="Crear cuenta"
+              loading={isLoading}
+              onPress={handleCreate}
+            />
+            <AppButton
+              label="Cambiar taquería"
+              onPress={handleResetSearch}
+              variant="secondary"
+            />
+          </>
+        ) : null}
       </View>
     </Screen>
   );
@@ -301,25 +402,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
+  matchesSection: {
+    gap: theme.spacing.sm,
+  },
   multilineInput: {
     minHeight: 88,
     textAlignVertical: 'top',
-  },
-  noticeCard: {
-    backgroundColor: theme.colors.muted,
-    borderRadius: theme.radius.md,
-    gap: theme.spacing.xs,
-    padding: theme.spacing.md,
-  },
-  noticeText: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  noticeTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
   },
   screen: {
     justifyContent: 'center',
@@ -341,6 +429,28 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 15,
     lineHeight: 22,
+  },
+  taqueriaCard: {
+    backgroundColor: theme.colors.muted,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    gap: theme.spacing.xs,
+    padding: theme.spacing.md,
+  },
+  taqueriaCardSelected: {
+    borderColor: theme.colors.primary,
+  },
+  taqueriaCode: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  taqueriaName: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
   },
   title: {
     color: theme.colors.textPrimary,

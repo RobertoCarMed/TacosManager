@@ -5,125 +5,74 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
-import {AppUser} from '../../../shared/types';
+import {AppUser, ApiTaqueria} from '../../../shared/types';
 import {authService} from '../services/authService';
-import {userService} from '../services/userService';
 
 type AuthContextValue = {
   error: string | null;
   isLoading: boolean;
+  signIn: (user: AppUser, taqueria: ApiTaqueria) => void;
   signOut: () => Promise<void>;
+  taqueria: ApiTaqueria | null;
   user: AppUser | null;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const PROFILE_LOAD_TIMEOUT_MS = 15000;
 
 export function AuthProvider({children}: PropsWithChildren) {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [taqueria, setTaqueria] = useState<ApiTaqueria | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const userProfileUnsubscribeRef = useRef<undefined | (() => void)>(undefined);
-  const profileTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const profileAttemptIdRef = useRef(0);
-
-  const clearProfileTimeout = useCallback(() => {
-    if (!profileTimeoutRef.current) {
-      return;
-    }
-
-    clearTimeout(profileTimeoutRef.current);
-    profileTimeoutRef.current = undefined;
-  }, []);
-
-  const cancelActiveProfileSubscription = useCallback(() => {
-    userProfileUnsubscribeRef.current?.();
-    userProfileUnsubscribeRef.current = undefined;
-  }, []);
 
   useEffect(() => {
-    const unsubscribeAuth = authService.subscribe(firebaseUser => {
-      clearProfileTimeout();
-      cancelActiveProfileSubscription();
+    let cancelled = false;
 
-      const currentAttemptId = ++profileAttemptIdRef.current;
-
-      if (!firebaseUser) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const sessionUser = authService.getSessionUser();
-
-      if (sessionUser?.id === firebaseUser.uid) {
-        setUser(sessionUser);
-      }
-
-      setError(null);
-      setIsLoading(true);
-      profileTimeoutRef.current = setTimeout(() => {
-        if (profileAttemptIdRef.current !== currentAttemptId) {
+    authService
+      .restoreSession()
+      .then(result => {
+        if (cancelled) {
           return;
         }
-
-        cancelActiveProfileSubscription();
-        setUser(null);
-        setError('No se pudo cargar el perfil. Verifica tu conexion e intenta de nuevo.');
-        setIsLoading(false);
-
-        authService.signOut().catch(() => {
-          // Ignore sign-out errors here; the UI is already unblocked for another login attempt.
-        });
-      }, PROFILE_LOAD_TIMEOUT_MS);
-
-      userProfileUnsubscribeRef.current = userService.subscribeToUserProfile(
-        firebaseUser.uid,
-        nextUser => {
-          if (profileAttemptIdRef.current !== currentAttemptId) {
-            return;
-          }
-
-          clearProfileTimeout();
-          setUser(nextUser ?? authService.getSessionUser());
+        if (result) {
+          setUser(result.user);
+          setTaqueria(result.taqueria);
+        }
+      })
+      .catch(() => {
+        // Token inválido o expirado — el authService ya lo limpió
+      })
+      .finally(() => {
+        if (!cancelled) {
           setIsLoading(false);
-        },
-        profileError => {
-          if (profileAttemptIdRef.current !== currentAttemptId) {
-            return;
-          }
-
-          clearProfileTimeout();
-          setError(profileError.message);
-          setUser(null);
-          setIsLoading(false);
-          authService.signOut().catch(() => {
-            // Keep login screen interactive even if remote sign-out takes time.
-          });
-        },
-      );
-    });
+        }
+      });
 
     return () => {
-      unsubscribeAuth();
-      clearProfileTimeout();
-      cancelActiveProfileSubscription();
+      cancelled = true;
     };
-  }, [cancelActiveProfileSubscription, clearProfileTimeout]);
+  }, []);
+
+  const signIn = useCallback((nextUser: AppUser, nextTaqueria: ApiTaqueria) => {
+    setUser(nextUser);
+    setTaqueria(nextTaqueria);
+    setError(null);
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     try {
       setError(null);
-      setIsLoading(true);
       await authService.signOut();
       setUser(null);
+      setTaqueria(null);
     } catch (signOutError) {
-      setError(signOutError instanceof Error ? signOutError.message : 'No se pudo cerrar sesion.');
-    } finally {
-      setIsLoading(false);
+      setError(
+        signOutError instanceof Error
+          ? signOutError.message
+          : 'No se pudo cerrar sesión.',
+      );
     }
   }, []);
 
@@ -131,10 +80,12 @@ export function AuthProvider({children}: PropsWithChildren) {
     () => ({
       error,
       isLoading,
+      signIn,
       signOut: handleSignOut,
+      taqueria,
       user,
     }),
-    [error, handleSignOut, isLoading, user],
+    [error, handleSignOut, isLoading, signIn, taqueria, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
