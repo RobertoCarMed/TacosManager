@@ -89,3 +89,6 @@ firebase.json
 # JVM Crash Logs
 hs_err_pid*.log
 replay_pid*.log
+
+# Claude Code
+.claude/

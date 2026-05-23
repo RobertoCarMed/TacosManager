@@ -1,91 +1,112 @@
-# 🌮 TacosManager
+# TacosManager
 
-**TacosManager** is a real-time mobile application built with React Native and Firebase that enables taquerias (and small restaurants) to seamlessly manage their orders. It optimizes the workflow by separating the responsibilities between Waiters and Cooks into a mini point-of-sale (POS) and operational management system. 
+TacosManager es una plataforma SaaS multi-tenant para la gestión operativa de taquerías en tiempo real.
 
-Built with a scalable architecture and clean code practices, it serves as a robust functional MVP with the potential to evolve into a full-fledged Multi-Tenant SaaS platform.
-
----
-
-## 🚀 Key Features
-
-*   **⚡ Real-Time Operations**: Uses Firestore listeners to instantly sync orders between the front-of-house (waiters) and the back-of-house (kitchen). No manual refreshing needed.
-*   **🧩 Multi-Tenant Architecture**: Engineered to support multiple businesses. Each taqueria has its own isolated users, customized product catalog, and order history.
-*   **🧍 Waiter Workflow**: Waiters can create orders, seamlessly browse the product catalog, adjust item quantities, and dispatch orders directly to the kitchen.
-*   **👨‍🍳 Kitchen Workflow**: Cooks receive orders in real-time, view specific details by table, and update the order status (`pending` ➔ `preparing` ➔ `done`).
-*   **⚙️ Product Management (Menu)**: Complete CRUD system for the restaurant's menu. Users can add or edit products, set prices, and optionally upload product images safely to Firebase Storage.
-*   **📱 Optimized UX**: Clean, large-button design focused on speed and efficiency in fast-paced, real-world kitchen environments. Optimized for tablet use with seamless mobile phone fallback.
+Permite a meseros y cocineros coordinar pedidos, cocina y catálogo de productos desde dispositivos móviles y tablets.
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## Documentación
+
+La documentación completa del proyecto vive en el submodule `docs/`.
+
+Es la **fuente de verdad** compartida entre el frontend y el backend.
+
+| Documento | Descripción |
+|-----------|-------------|
+| [`docs/business-rules.md`](docs/business-rules.md) | Reglas de negocio, roles, multi-tenant, estados de orden, prioridad de cocina |
+| [`docs/feature-list.md`](docs/feature-list.md) | Lista de funcionalidades implementadas por módulo |
+| [`docs/readmap.md`](docs/readmap.md) | Roadmap de desarrollo por etapas con estado de cada fase |
+| [`docs/architecture.md`](docs/architecture.md) | Arquitectura del sistema: módulos, modelos de dominio, seguridad, realtime |
+| [`docs/backend-api.md`](docs/backend-api.md) | Referencia completa de endpoints REST con contratos de request/response |
+| [`docs/backend-realtime.md`](docs/backend-realtime.md) | Referencia de Socket.IO: conexión, eventos, payloads, integración React Native |
+| [`docs/api-reference.md`](docs/api-reference.md) | Referencia rápida de rutas, reglas de ownership y WebSocket |
+
+---
+
+## Stack Tecnológico
 
 ### Frontend
-*   **React Native CLI** + **TypeScript**: Strongly typed mobile app for iOS and Android.
-*   **Redux Toolkit**: Efficient and predictable global state management.
-*   **Feature-Based Architecture**: Highly decoupled, modular approach dividing the app into clear domains (`auth`, `kitchen`, `products`, `settings`).
 
-### Backend (BaaS)
-*   **Firebase Authentication**: Secure user login/registration via email and password.
-*   **Cloud Firestore**: Real-time NoSQL database.
-*   **Firebase Cloud Storage**: Secure storage bucket for product images (designed to gracefully fallback if no image is provided).
+- React Native CLI + TypeScript
+- Context API (estado global de autenticación)
+- Redux Toolkit (módulo de órdenes)
 
----
+### Backend
 
-## 🗄️ Database Structure Overview
-
-### 👤 Users & Roles
-Users register with a `name`, `email`, `password`, and a designated `role` (`waiter` | `cook`), and are strictly bound to a single `taqueriaId`.
-> `users/{userId}` ➔ `taqueriaId`
-
-### 🌮 Multi-Tenant Mapping
-The core entity holding everything together for a single business entity.
-> `taquerias/{taqueriaId}`
-
-### 🍽️ Menu / Products
-Menu items isolated per business branch.
-> `taquerias/{taqueriaId}/products/{productId}`
-*   `name`
-*   `price`
-*   `imageUrl` (optional)
-
-### 🧾 Orders
-Tickets created by waiters and processed by the kitchen.
-> `taquerias/{taqueriaId}/orders/{orderId}`
-*   `table` / `clientName`
-*   `items` (List of products + selected quantity)
-*   `status` (`pending` | `preparing` | `done`)
+- NestJS 11 con arquitectura modular
+- Prisma 7 + PostgreSQL
+- JWT Authentication (Bearer token, expiración 1 día)
+- Socket.IO v4 (realtime en el mismo puerto que REST)
+- Docker
 
 ---
 
-## 💻 Getting Started Locally
+## Arquitectura
 
-### Prerequisites
-Make sure you have your React Native environment set up and Firebase credentials configured.
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
-
-2. **Firebase Setup:**
-   Ensure you add your Firebase configuration files:
-   * **Android:** Swap `android/app/google-services.json` with your project's credentials.
-   * **iOS:** Swap `ios/GoogleService-Info.plist` with your project's credentials.
-
-3. **Start the Metro Bundler:**
-   ```bash
-   npm start
-   ```
-
-4. **Run the application:**
-   ```bash
-   npm run android
-   # or
-   npm run ios
-   ```
+```
+Cliente React Native
+    │
+    ├── HTTP REST          ├── WebSocket Socket.IO
+    ▼                              ▼
+NestJS API                NestJS WebSocket Gateway
+    │                              │
+    ├── Auth Module        ├── RealtimeGateway
+    ├── Users Module       ├── Rooms: taqueria:<taqueriaId>
+    ├── Products Module    └── JWT validation en handshake
+    ├── Orders Module
+    └── Realtime Module
+    │
+    ▼
+Prisma ORM → PostgreSQL
+```
 
 ---
 
-*This project is built as a highly scalable solution designed to elevate daily operations for fast-paced food restaurants.*
+## Roles
+
+| Rol | Permisos |
+|-----|----------|
+| `COOK` | Ver todos los pedidos, cambiar estados, gestionar productos, cocina en tiempo real |
+| `WAITER` | Crear pedidos, ver sus propios pedidos, editar pedidos propios |
+
+---
+
+## Iniciar el proyecto
+
+### Instalar dependencias
+
+```bash
+npm install
+```
+
+### Inicializar el submodule de documentación
+
+```bash
+git submodule update --init --recursive
+```
+
+### Correr en Android
+
+```bash
+npm run android
+```
+
+### Correr en iOS
+
+```bash
+npm run ios
+```
+
+---
+
+## Reglas de desarrollo
+
+Antes de implementar cualquier funcionalidad:
+
+1. Leer la documentación relevante en `docs/`.
+2. Verificar que la implementación sea consistente con las reglas en `docs/business-rules.md`.
+3. Consultar los contratos de API en `docs/backend-api.md`.
+4. Al finalizar, actualizar los documentos afectados en `docs/`.
+
+La documentación debe quedar sincronizada con el estado final del código en cada etapa.
