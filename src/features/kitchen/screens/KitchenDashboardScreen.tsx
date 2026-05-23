@@ -27,7 +27,7 @@ export function KitchenDashboardScreen({navigation}: Props) {
 
       <FlatList
         contentContainerStyle={styles.list}
-        data={orders.filter(order => order.status !== 'completed')}
+        data={orders.filter(order => order.status !== 'DELIVERED' && order.status !== 'CANCELLED')}
         keyExtractor={item => item.id}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -39,22 +39,22 @@ export function KitchenDashboardScreen({navigation}: Props) {
           <OrderCard
             variant="kitchen"
             footer={
-              item.status === 'pending' ? (
+              item.status === 'PENDING' || item.status === 'UPDATED' ? (
                 <AppButton
                   label="Marcar preparando"
-                  onPress={() => updateOrderStatus(item.id, 'preparing')}
+                  onPress={() => updateOrderStatus(item.id, 'PREPARING')}
                   size="large"
                 />
-              ) : item.status === 'preparing' ? (
+              ) : item.status === 'PREPARING' ? (
                 <AppButton
                   label="Marcar listo"
-                  onPress={() => updateOrderStatus(item.id, 'ready')}
+                  onPress={() => updateOrderStatus(item.id, 'READY')}
                   size="large"
                 />
               ) : (
                 <AppButton
                   label="Entregado"
-                  onPress={() => updateOrderStatus(item.id, 'completed')}
+                  onPress={() => updateOrderStatus(item.id, 'DELIVERED')}
                   size="large"
                   variant="secondary"
                 />

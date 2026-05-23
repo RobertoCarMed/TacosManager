@@ -17,19 +17,21 @@ type OrderCardProps = {
 };
 
 const statusLabels: Record<Order['status'], string> = {
-  completed: 'COMPLETADO',
-  updated: 'ACTUALIZADA',
-  pending: 'PENDIENTE',
-  preparing: 'PREPARANDO',
-  ready: 'LISTO',
+  CANCELLED: 'CANCELADO',
+  DELIVERED: 'ENTREGADO',
+  PENDING: 'PENDIENTE',
+  PREPARING: 'PREPARANDO',
+  READY: 'LISTO',
+  UPDATED: 'ACTUALIZADA',
 };
 
 const statusColors: Record<Order['status'], string> = {
-  completed: theme.colors.success,
-  updated: '#2E7D32',
-  pending: theme.colors.warning,
-  preparing: theme.colors.accent,
-  ready: theme.colors.primary,
+  CANCELLED: theme.colors.danger,
+  DELIVERED: theme.colors.success,
+  PENDING: theme.colors.warning,
+  PREPARING: theme.colors.accent,
+  READY: theme.colors.primary,
+  UPDATED: '#2E7D32',
 };
 
 function getSafePrice(value: number | undefined) {

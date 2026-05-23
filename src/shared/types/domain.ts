@@ -21,38 +21,64 @@ export type ApiTaqueria = {
 };
 
 export type OrderStatus =
-  | 'updated'
-  | 'pending'
-  | 'preparing'
-  | 'ready'
-  | 'completed';
+  | 'UPDATED'
+  | 'PENDING'
+  | 'PREPARING'
+  | 'READY'
+  | 'DELIVERED'
+  | 'CANCELLED';
 
 export type OrderItem = {
-  availableComplements?: string[];
-  complements?: string[];
   id?: string;
-  isNew?: boolean;
+  productId: string;
   name: string;
   price?: number;
   quantity: number;
+  selectedComplements: string[];
+  /** @deprecated Use selectedComplements */
+  complements?: string[];
+  availableComplements?: string[];
+  notes?: string;
+  isNew?: boolean;
+  createdInRevision?: number;
+  createdAt?: string;
 };
 
 export type Plate = {
   id: string;
+  plateNumber: number;
+  isClosed?: boolean;
+  createdInRevision?: number;
+  createdAt?: string;
   items: OrderItem[];
 };
 
 export type Order = {
   id: string;
+  tableNumber: string;
+  /** @deprecated Use tableNumber */
   table: string;
   plates: Plate[];
-  /** @deprecated Flat accessor kept for backward compatibility — prefer `plates`. */
+  /** @deprecated Use plates[].items */
   items: OrderItem[];
   status: OrderStatus;
+  revision?: number;
+  priorityTimestamp?: string;
+  waiterId?: string;
+  taqueriaId?: string;
   createdAt: string | number;
+  updatedAt?: string;
 };
 
 export type CreateOrderPayload = {
-  table: string;
-  plates: Plate[];
+  tableNumber: string;
+  plates: Array<{
+    plateNumber: number;
+    items: Array<{
+      productId: string;
+      quantity: number;
+      selectedComplements: string[];
+      notes?: string;
+    }>;
+  }>;
 };

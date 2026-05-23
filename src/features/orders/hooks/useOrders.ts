@@ -43,13 +43,8 @@ export function useOrders(options?: UseOrdersOptions) {
 
       dispatch(setOrdersLoading(true));
 
-      // Components consume normalized state from Redux while Firestore sync stays encapsulated here.
       const unsubscribe = ordersService.subscribeToOrders(
-        user.taqueriaId,
-        {
-          createdBy,
-          dateFilter,
-        },
+        {dateFilter, taqueriaId: user.taqueriaId},
         nextOrders => {
           dispatch(setOrders(nextOrders));
         },
@@ -74,7 +69,7 @@ export function useOrders(options?: UseOrdersOptions) {
       dispatch(setOrdersLoading(true));
 
       try {
-        await ordersService.createOrder(user.taqueriaId, payload, user.id);
+        await ordersService.createOrder(payload);
       } catch (createOrderError) {
         dispatch(
           setOrdersError(
@@ -88,7 +83,7 @@ export function useOrders(options?: UseOrdersOptions) {
         dispatch(setOrdersLoading(false));
       }
     },
-    [dispatch, user?.id, user?.taqueriaId],
+    [dispatch, user?.taqueriaId],
   );
 
   const updateOrderStatus = useCallback(
@@ -98,7 +93,7 @@ export function useOrders(options?: UseOrdersOptions) {
       }
 
       try {
-        await ordersService.updateOrderStatus(user.taqueriaId, orderId, status);
+        await ordersService.updateOrderStatus(orderId, status);
       } catch (updateOrderError) {
         dispatch(
           setOrdersError(

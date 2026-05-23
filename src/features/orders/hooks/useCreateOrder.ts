@@ -4,12 +4,13 @@ import { ordersService } from '../services/ordersService';
 import { Product } from '../../products/types';
 
 type NewOrderItem = {
-  availableComplements: string[];
-  complements: string[];
-  id?: string;
+  productId: string;
   name: string;
   price: number;
   quantity: number;
+  selectedComplements: string[];
+  availableComplements: string[];
+  complements: string[];
 };
 
 type NewPlate = {
@@ -50,13 +51,11 @@ export function useCreateOrder() {
     (plateId: string) => {
       setPlates(current => {
         const next = current.filter(p => p.id !== plateId);
-        // Always keep at least one plate
         if (next.length === 0) {
           const fallback: NewPlate = { id: generatePlateId(), items: [] };
           setActivePlateId(fallback.id);
           return [fallback];
         }
-        // If the removed plate was the active one, move focus
         if (plateId === activePlateId) {
           setActivePlateId(next[0].id);
         }
@@ -114,12 +113,13 @@ export function useCreateOrder() {
               items: [
                 ...plate.items,
                 {
-                  availableComplements: selectedProduct.complements.slice(0, 3),
-                  complements: selectedComplements,
-                  id: selectedProduct.id,
+                  productId: selectedProduct.id,
                   name: selectedProduct.name,
                   price: selectedProduct.price,
                   quantity,
+                  selectedComplements,
+                  availableComplements: selectedProduct.complements.slice(0, 3),
+                  complements: selectedComplements,
                 },
               ],
             }
@@ -150,7 +150,6 @@ export function useCreateOrder() {
       return false;
     }
 
-    // Validate: at least one plate with at least one item
     const nonEmptyPlates = plates.filter(p => p.items.length > 0);
     if (nonEmptyPlates.length === 0) {
       setError('Agrega al menos un plato con productos.');
@@ -166,16 +165,18 @@ export function useCreateOrder() {
       setError(null);
       setIsLoading(true);
 
-      await ordersService.createOrder(
-        user.taqueriaId,
-        {
-          plates: nonEmptyPlates,
-          table: table.trim(),
-        },
-        user.id,
-      );
+      await ordersService.createOrder({
+        tableNumber: table.trim(),
+        plates: nonEmptyPlates.map((p, i) => ({
+          plateNumber: i + 1,
+          items: p.items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            selectedComplements: item.selectedComplements,
+          })),
+        })),
+      });
 
-      // Reset state
       const freshPlate: NewPlate = { id: generatePlateId(), items: [] };
       setTable('');
       setPlates([freshPlate]);
@@ -195,7 +196,7 @@ export function useCreateOrder() {
     } finally {
       setIsLoading(false);
     }
-  }, [plates, table, user?.id, user?.taqueriaId]);
+  }, [plates, table, user?.taqueriaId]);
 
   const canSave = useMemo(
     () =>

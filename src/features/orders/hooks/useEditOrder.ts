@@ -2,16 +2,17 @@ import {useCallback, useMemo, useState} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {useAuth} from '../../auth';
 import {Product} from '../../products/types';
-import {Order, Plate} from '../../../shared/types';
+import {Order} from '../../../shared/types';
 import {ordersService} from '../services/ordersService';
 
 type NewOrderItem = {
-  availableComplements: string[];
-  complements: string[];
-  id?: string;
+  productId: string;
   name: string;
   price: number;
   quantity: number;
+  selectedComplements: string[];
+  availableComplements: string[];
+  complements: string[];
 };
 
 type NewPlate = {
@@ -57,7 +58,7 @@ export function useEditOrder(orderId: string) {
         setIsLoadingOrder(true);
         setLoadError(null);
         try {
-          const order = await ordersService.getOrder(user.taqueriaId, orderId);
+          const order = await ordersService.getOrder(orderId);
           if (cancelled) {
             return;
           }
@@ -155,12 +156,13 @@ export function useEditOrder(orderId: string) {
               items: [
                 ...plate.items,
                 {
-                  availableComplements: selectedProduct.complements.slice(0, 3),
-                  complements: selectedComplements,
-                  id: selectedProduct.id,
+                  productId: selectedProduct.id,
                   name: selectedProduct.name,
                   price: selectedProduct.price,
                   quantity,
+                  selectedComplements,
+                  availableComplements: selectedProduct.complements.slice(0, 3),
+                  complements: selectedComplements,
                 },
               ],
             }
@@ -198,22 +200,31 @@ export function useEditOrder(orderId: string) {
       setError('No hay una taqueria activa.');
       return false;
     }
-    const nonEmptyNew: Plate[] = plates
-      .filter(p => p.items.length > 0)
-      .map(p => ({id: p.id, items: p.items}));
+
+    const nonEmptyNew = plates.filter(p => p.items.length > 0);
 
     if (nonEmptyNew.length === 0) {
       setError('Agrega al menos un producto.');
       return false;
     }
 
+    const existingMaxPlateNumber = existingOrder
+      ? Math.max(...existingOrder.plates.map(p => p.plateNumber), 0)
+      : 0;
+
     try {
       setError(null);
       setIsLoading(true);
       await ordersService.appendPlatesToOrder(
-        user.taqueriaId,
         orderId,
-        nonEmptyNew,
+        nonEmptyNew.map((p, i) => ({
+          plateNumber: existingMaxPlateNumber + i + 1,
+          items: p.items.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            selectedComplements: item.selectedComplements,
+          })),
+        })),
       );
       return true;
     } catch (saveErr) {
@@ -226,7 +237,7 @@ export function useEditOrder(orderId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.taqueriaId, orderId, plates]);
+  }, [user?.taqueriaId, orderId, plates, existingOrder]);
 
   return {
     activePlateId,

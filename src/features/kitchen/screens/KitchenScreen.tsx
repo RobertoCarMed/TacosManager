@@ -21,11 +21,12 @@ type Props = NativeStackScreenProps<KitchenStackParamList, 'KitchenDashboard'>;
 type GridPlaceholder = {id: string; isPlaceholder: true};
 
 const statusPriority: Record<Order['status'], number> = {
-  updated: 1,
-  pending: 2,
-  preparing: 3,
-  ready: 4,
-  completed: 5,
+  UPDATED: 1,
+  PENDING: 2,
+  PREPARING: 3,
+  READY: 4,
+  DELIVERED: 5,
+  CANCELLED: 6,
 };
 
 const layoutReflowAnimation = {
@@ -75,7 +76,7 @@ export function KitchenScreen({navigation}: Props) {
 
   const activeOrders = useMemo(() => {
     return animatedOrders
-      .filter(order => order.status !== 'completed')
+      .filter(order => order.status !== 'DELIVERED' && order.status !== 'CANCELLED')
       .map((order, index) => ({index, order}))
       .sort((a, b) => {
         const statusDiff = statusPriority[a.order.status] - statusPriority[b.order.status];

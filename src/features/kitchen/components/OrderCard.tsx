@@ -13,19 +13,21 @@ type KitchenOrderCardProps = {
 };
 
 const statusLabels: Record<Order['status'], string> = {
-  completed: 'COMPLETADO',
-  updated: 'ACTUALIZADA',
-  pending: 'PENDIENTE',
-  preparing: 'PREPARANDO',
-  ready: 'LISTO',
+  CANCELLED: 'CANCELADO',
+  DELIVERED: 'ENTREGADO',
+  PENDING: 'PENDIENTE',
+  PREPARING: 'PREPARANDO',
+  READY: 'LISTO',
+  UPDATED: 'ACTUALIZADA',
 };
 
 const statusColors: Record<Order['status'], { bg: string; text: string }> = {
-  completed: { bg: '#E8F5EC', text: theme.colors.success },
-  updated: { bg: '#E8F5E9', text: '#2E7D32' },
-  pending: { bg: '#FFF4DE', text: theme.colors.warning },
-  preparing: { bg: '#E9F2FF', text: '#1E5FAF' },
-  ready: { bg: '#E8F5EC', text: theme.colors.success },
+  CANCELLED: { bg: '#FFEBEE', text: theme.colors.danger },
+  DELIVERED: { bg: '#E8F5EC', text: theme.colors.success },
+  PENDING: { bg: '#FFF4DE', text: theme.colors.warning },
+  PREPARING: { bg: '#E9F2FF', text: '#1E5FAF' },
+  READY: { bg: '#E8F5EC', text: theme.colors.success },
+  UPDATED: { bg: '#E8F5E9', text: '#2E7D32' },
 };
 
 function getOrderTime(createdAt: string | number) {
@@ -41,25 +43,25 @@ function getOrderTime(createdAt: string | number) {
 }
 
 function getActionForStatus(status: Order['status']) {
-  if (status === 'pending' || status === 'updated') {
+  if (status === 'PENDING' || status === 'UPDATED') {
     return {
       label: 'Marcar preparando',
-      nextStatus: 'preparing' as const,
+      nextStatus: 'PREPARING' as const,
       variant: 'primary' as const,
     };
   }
 
-  if (status === 'preparing') {
+  if (status === 'PREPARING') {
     return {
       label: 'Marcar listo',
-      nextStatus: 'ready' as const,
+      nextStatus: 'READY' as const,
       variant: 'primary' as const,
     };
   }
 
   return {
     label: 'Entregado',
-    nextStatus: 'completed' as const,
+    nextStatus: 'DELIVERED' as const,
     variant: 'secondary' as const,
   };
 }
