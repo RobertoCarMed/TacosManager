@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '../../../shared/components';
 import { theme } from '../../../shared/constants';
 import { Order } from '../../../shared/types';
+import { getOrderDisplayLabel } from '../../../shared/utils';
 
 type KitchenOrderCardProps = {
   order: Order;
@@ -114,9 +115,6 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
   const sortedPlates = hasPlates ? sortPlatesByNewFlag(order.plates) : [];
   const cardOpacity = useRef(new Animated.Value(1)).current;
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const orderType =
-    (order as Order & { orderType?: string; type?: string }).orderType ??
-    (order as Order & { orderType?: string; type?: string }).type;
 
   const handleAdvanceStatus = useCallback(() => {
     if (isTransitioning) {
@@ -197,7 +195,7 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
     <Animated.View style={[styles.card, { opacity: cardOpacity }]}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.tableText}>Mesa {order.table}</Text>
+          <Text style={styles.tableText}>{getOrderDisplayLabel(order)}</Text>
           <Text style={styles.timeText}>{getOrderTime(order.createdAt)}</Text>
         </View>
         <View
@@ -218,9 +216,6 @@ export function OrderCard({ onAdvanceStatus, order }: KitchenOrderCardProps) {
       </View>
 
       <View style={styles.body}>
-        {orderType ? (
-          <Text style={styles.orderTypeText}>{orderType}</Text>
-        ) : null}
         {hasPlates ? (
           <View style={styles.platesContainer}>
             {sortedPlates.map(({ plate, originalIndex: plateOriginalIndex }) => (
@@ -365,12 +360,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 30,
     textAlign: 'left',
-  },
-  orderTypeText: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
-    textTransform: 'uppercase',
   },
   plateBlock: {
     backgroundColor: theme.colors.muted,
