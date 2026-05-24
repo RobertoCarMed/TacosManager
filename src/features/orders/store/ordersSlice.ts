@@ -31,11 +31,31 @@ const ordersSlice = createSlice({
     setOrdersLoading(state, action: PayloadAction<boolean>) {
       state.isLoading = action.payload;
     },
+    addOrder(state, action: PayloadAction<Order>) {
+      const exists = state.items.some(o => o.id === action.payload.id);
+      if (!exists) {
+        state.items.push(action.payload);
+      }
+    },
+    upsertOrder(state, action: PayloadAction<Order>) {
+      const index = state.items.findIndex(o => o.id === action.payload.id);
+      if (index !== -1) {
+        state.items[index] = action.payload;
+      } else {
+        state.items.push(action.payload);
+      }
+    },
   },
 });
 
-export const {resetOrdersState, setOrders, setOrdersError, setOrdersLoading} =
-  ordersSlice.actions;
+export const {
+  addOrder,
+  resetOrdersState,
+  setOrders,
+  setOrdersError,
+  setOrdersLoading,
+  upsertOrder,
+} = ordersSlice.actions;
 
 export const ordersReducer = ordersSlice.reducer;
 

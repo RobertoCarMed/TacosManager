@@ -19,7 +19,7 @@ type SubscribeOrdersOptions = {
 
 // ─── API shapes ───────────────────────────────────────────────────────────────
 
-type ApiItem = {
+export type ApiItem = {
   id: string;
   productId: string;
   quantity: number;
@@ -30,7 +30,7 @@ type ApiItem = {
   createdAt: string;
 };
 
-type ApiPlate = {
+export type ApiPlate = {
   id: string;
   plateNumber: number;
   isClosed: boolean;
@@ -39,7 +39,7 @@ type ApiPlate = {
   items: ApiItem[];
 };
 
-type ApiOrder = {
+export type ApiOrder = {
   id: string;
   taqueriaId: string;
   waiterId: string;
@@ -152,6 +152,10 @@ type AppendPlatesPayload = Array<{
 }>;
 
 export const ordersService = {
+  parseOrder(apiOrder: ApiOrder): Order {
+    return mapApiOrder(apiOrder);
+  },
+
   async createOrder(payload: CreateOrderPayload): Promise<void> {
     try {
       await apiClient.post('/orders', payload);
