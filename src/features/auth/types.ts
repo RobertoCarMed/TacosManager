@@ -22,45 +22,6 @@ export type RegisterPayload = {
   taqueriaName: string;
 };
 
-// Legacy types — kept for Firestore compatibility during 4.5.x migration
-export type CreateTaqueriaParams = {
-  city: string;
-  name: string;
-  normalizedName: string;
-  address: string;
-  ownerId: string;
-  state: string;
-};
-
-export type CreateUserProfileParams = {
-  id: string;
-  name: string;
-  email: string;
-  role: RegistrationRole;
-  taqueriaId: string;
-};
-
-export type TaqueriaRecord = {
-  address: string;
-  city: string;
-  createdAt: number;
-  id: string;
-  name: string;
-  normalizedName: string;
-  ownerId: string;
-  state: string;
-};
-
-export type TaqueriaLookupResult = {
-  normalizedName: string;
-  taqueria: TaqueriaRecord | null;
-};
-
-export type RegisteredUserProfile = AppUser & {
-  createdAt: number;
-  email: string;
-};
-
 // ─── API types for NestJS backend ────────────────────────────────────────────
 
 export type ApiTaqueriaMatch = {
