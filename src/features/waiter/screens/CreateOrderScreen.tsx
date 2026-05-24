@@ -45,8 +45,16 @@ export function CreateOrderScreen({navigation}: Props) {
     try {
       setLocalError(null);
       await createOrder({
-        plates: [{id: `plate-quick-${Date.now()}`, items}],
-        table: table.trim(),
+        type: 'DINE_IN',
+        reference: table.trim(),
+        plates: [{
+          plateNumber: 1,
+          items: items.map(item => ({
+            productId: item.name,
+            quantity: item.quantity,
+            selectedComplements: [],
+          })),
+        }],
       });
       Alert.alert('Pedido creado', 'La cocina vera el pedido en tiempo real.');
       handleSafeGoBack();

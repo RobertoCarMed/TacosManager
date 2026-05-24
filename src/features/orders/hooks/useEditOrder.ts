@@ -1,8 +1,8 @@
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {useAuth} from '../../auth';
 import {Product} from '../../products/types';
-import {Order} from '../../../shared/types';
+import {Order, OrderType} from '../../../shared/types';
 import {ordersService} from '../services/ordersService';
 
 type NewOrderItem = {
@@ -36,6 +36,10 @@ export function useEditOrder(orderId: string) {
   const [existingOrder, setExistingOrder] = useState<Order | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+
+  const [orderType, setOrderType] = useState<OrderType>('DINE_IN');
+  const [reference, setReference] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
 
   const [plates, setPlates] = useState<NewPlate[]>([emptyPlate()]);
   const [activePlateId, setActivePlateId] = useState<string>(plates[0]!.id);
@@ -88,6 +92,26 @@ export function useEditOrder(orderId: string) {
       };
     }, [user?.taqueriaId, orderId]),
   );
+
+  // Sync classification state when existing order loads
+  useEffect(() => {
+    if (existingOrder) {
+      setOrderType(existingOrder.type ?? 'DINE_IN');
+      setReference(existingOrder.reference ?? '');
+      setDeliveryAddress(existingOrder.deliveryAddress ?? '');
+    }
+  }, [existingOrder]);
+
+  // ── Order type ──────────────────────────────────────────────────────
+
+  const changeOrderType = useCallback((type: OrderType) => {
+    setOrderType(type);
+    setReference('');
+    setDeliveryAddress('');
+    setError(null);
+  }, []);
+
+  // ── Plate management ────────────────────────────────────────────────
 
   const addPlate = useCallback(() => {
     const newPlate: NewPlate = emptyPlate();
@@ -190,9 +214,40 @@ export function useEditOrder(orderId: string) {
     [plates],
   );
 
+  const isClassificationValid = useMemo(
+    () =>
+      orderType === 'DELIVERY'
+        ? Boolean(deliveryAddress.trim())
+        : Boolean(reference.trim()),
+    [deliveryAddress, orderType, reference],
+  );
+
+  const classificationChanged = useMemo(() => {
+    if (!existingOrder) {
+      return false;
+    }
+    return (
+      orderType !== existingOrder.type ||
+      reference !== (existingOrder.reference ?? '') ||
+      deliveryAddress !== (existingOrder.deliveryAddress ?? '')
+    );
+  }, [existingOrder, orderType, reference, deliveryAddress]);
+
   const canSave = useMemo(
-    () => hasNewItems && !isLoadingOrder && existingOrder != null,
-    [existingOrder, hasNewItems, isLoadingOrder],
+    () =>
+      !isLoadingOrder &&
+      existingOrder != null &&
+      isClassificationValid &&
+      (hasNewItems || classificationChanged) &&
+      !isLoading,
+    [
+      existingOrder,
+      hasNewItems,
+      isClassificationValid,
+      isLoading,
+      isLoadingOrder,
+      classificationChanged,
+    ],
   );
 
   const saveChanges = useCallback(async () => {
@@ -201,16 +256,33 @@ export function useEditOrder(orderId: string) {
       return false;
     }
 
-    const nonEmptyNew = plates.filter(p => p.items.length > 0);
-
-    if (nonEmptyNew.length === 0) {
-      setError('Agrega al menos un producto.');
+    if (orderType !== 'DELIVERY' && !reference.trim()) {
+      setError(
+        orderType === 'DINE_IN'
+          ? 'La referencia (mesa) es obligatoria.'
+          : 'El nombre de quien recoge es obligatorio.',
+      );
       return false;
     }
+
+    if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
+      setError('La dirección de entrega es obligatoria.');
+      return false;
+    }
+
+    const nonEmptyNew = plates.filter(p => p.items.length > 0);
 
     const existingMaxPlateNumber = existingOrder
       ? Math.max(...existingOrder.plates.map(p => p.plateNumber), 0)
       : 0;
+
+    const classification = classificationChanged
+      ? {
+          type: orderType,
+          reference: reference.trim() || null,
+          deliveryAddress: deliveryAddress.trim() || null,
+        }
+      : undefined;
 
     try {
       setError(null);
@@ -225,6 +297,7 @@ export function useEditOrder(orderId: string) {
             selectedComplements: item.selectedComplements,
           })),
         })),
+        classification,
       );
       return true;
     } catch (saveErr) {
@@ -237,14 +310,26 @@ export function useEditOrder(orderId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.taqueriaId, orderId, plates, existingOrder]);
+  }, [
+    user?.taqueriaId,
+    orderType,
+    reference,
+    deliveryAddress,
+    plates,
+    existingOrder,
+    orderId,
+    classificationChanged,
+  ]);
 
   return {
     activePlateId,
     addPlate,
     addProduct,
     canSave,
+    changeOrderType,
+    classificationChanged,
     decrementQuantity,
+    deliveryAddress,
     error,
     existingOrder,
     hasNewItems,
@@ -252,8 +337,10 @@ export function useEditOrder(orderId: string) {
     isLoading,
     isLoadingOrder,
     loadError,
+    orderType,
     plates,
     quantity,
+    reference,
     removePlate,
     removeProduct,
     saveChanges,
@@ -261,6 +348,8 @@ export function useEditOrder(orderId: string) {
     selectedComplements,
     selectedProduct,
     setActivePlateId,
+    setDeliveryAddress,
+    setReference,
     toggleComplement,
   };
 }

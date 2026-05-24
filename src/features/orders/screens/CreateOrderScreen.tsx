@@ -9,12 +9,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { WaiterStackParamList } from '../../../navigation/types';
 import { AppButton, Screen } from '../../../shared/components';
 import { theme } from '../../../shared/constants';
-import { AuthInput } from '../../auth/components/AuthInput';
+import { OrderType } from '../../../shared/types';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useProducts } from '../../products/hooks/useProducts';
 import { Product } from '../../products/types';
@@ -24,6 +25,18 @@ import { useCreateOrder } from '../hooks/useCreateOrder';
 const productPlaceholder = require('../../../assets/images/product-placeholder.jpg');
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'CreateOrder'>;
+
+const ORDER_TYPES: { value: OrderType; emoji: string; label: string }[] = [
+  { value: 'DINE_IN', emoji: '🍽', label: 'Comer aquí' },
+  { value: 'TAKEAWAY', emoji: '🥡', label: 'Para llevar' },
+  { value: 'DELIVERY', emoji: '🛵', label: 'Delivery' },
+];
+
+const FIELD_CONFIG: Record<OrderType, { label: string; placeholder: string }> = {
+  DINE_IN: { label: 'Referencia', placeholder: 'Mesa 4' },
+  TAKEAWAY: { label: 'Nombre de quien recogerá', placeholder: 'Roberto' },
+  DELIVERY: { label: 'Dirección', placeholder: 'Av. Juárez #123' },
+};
 
 export function CreateOrderScreen({ navigation }: Props) {
   const [selectorVisible, setSelectorVisible] = useState(false);
@@ -38,12 +51,16 @@ export function CreateOrderScreen({ navigation }: Props) {
     addPlate,
     addProduct,
     canSave,
+    changeOrderType,
     decrementQuantity,
+    deliveryAddress,
     error,
     incrementQuantity,
     isLoading,
+    orderType,
     plates,
     quantity,
+    reference,
     removePlate,
     removeProduct,
     saveOrder,
@@ -51,8 +68,8 @@ export function CreateOrderScreen({ navigation }: Props) {
     selectedComplements,
     selectedProduct,
     setActivePlateId,
-    setTable,
-    table,
+    setDeliveryAddress,
+    setReference,
     toggleComplement,
   } = useCreateOrder();
 
@@ -60,23 +77,19 @@ export function CreateOrderScreen({ navigation }: Props) {
     () => Boolean(selectedProduct) && quantity > 0,
     [quantity, selectedProduct],
   );
+
   const handleSafeGoBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-
     navigation.navigate('WaiterOrders');
   };
 
   const handleSave = async () => {
     const wasSaved = await saveOrder();
-
     if (wasSaved) {
-      Alert.alert(
-        'Pedido guardado',
-        'El pedido se envio correctamente a cocina.',
-      );
+      Alert.alert('Pedido guardado', 'El pedido se envio correctamente a cocina.');
       handleSafeGoBack();
     }
   };
@@ -90,6 +103,8 @@ export function CreateOrderScreen({ navigation }: Props) {
     ? { uri: selectedProduct.imageUrl }
     : productPlaceholder;
 
+  const fieldConfig = FIELD_CONFIG[orderType];
+
   return (
     <Screen contentStyle={styles.container}>
       <ScrollView
@@ -97,16 +112,83 @@ export function CreateOrderScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Table / customer ─────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Mesa o cliente</Text>
-        <AuthInput
-          autoCapitalize="words"
-          keyboardType="default"
-          label="Mesa o cliente"
-          onChangeText={setTable}
-          placeholder="Ej. Mesa 12 o Cliente Juan"
-          value={table}
-        />
+        {/* ── Order type selector ──────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tipo de pedido</Text>
+          <View style={styles.typeSelector}>
+            {ORDER_TYPES.map(t => (
+              <Pressable
+                key={t.value}
+                onPress={() => changeOrderType(t.value)}
+                style={({ pressed }) => [
+                  styles.typeOption,
+                  orderType === t.value && styles.typeOptionSelected,
+                  { opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={styles.typeEmoji}>{t.emoji}</Text>
+                <Text
+                  style={[
+                    styles.typeLabel,
+                    orderType === t.value && styles.typeLabelSelected,
+                  ]}
+                >
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Reference / address fields ───────────────────────────── */}
+        <View style={styles.section}>
+          {orderType !== 'DELIVERY' ? (
+            <>
+              <Text style={styles.fieldLabel}>
+                {fieldConfig.label}
+                <Text style={styles.required}> *</Text>
+              </Text>
+              <TextInput
+                autoCapitalize="words"
+                keyboardType="default"
+                onChangeText={setReference}
+                placeholder={fieldConfig.placeholder}
+                placeholderTextColor={theme.colors.textSecondary}
+                style={styles.input}
+                value={reference}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.fieldLabel}>
+                Dirección
+                <Text style={styles.required}> *</Text>
+              </Text>
+              <TextInput
+                autoCapitalize="sentences"
+                keyboardType="default"
+                onChangeText={setDeliveryAddress}
+                placeholder="Av. Juárez #123"
+                placeholderTextColor={theme.colors.textSecondary}
+                style={styles.input}
+                value={deliveryAddress}
+              />
+              <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+                Nombre de referencia
+                <Text style={styles.optional}> (opcional)</Text>
+              </Text>
+              <TextInput
+                autoCapitalize="words"
+                keyboardType="default"
+                onChangeText={setReference}
+                placeholder="Roberto"
+                placeholderTextColor={theme.colors.textSecondary}
+                style={styles.input}
+                value={reference}
+              />
+            </>
+          )}
+        </View>
 
         {/* ── Plates list ──────────────────────────────────────────── */}
         <View style={styles.section}>
@@ -155,9 +237,7 @@ export function CreateOrderScreen({ navigation }: Props) {
                 !selectedProduct ? styles.selectorPlaceholder : null,
               ]}
             >
-              {selectedProduct
-                ? selectedProduct.name
-                : 'Selecciona un producto'}
+              {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
             </Text>
           </Pressable>
 
@@ -352,6 +432,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  fieldLabelSpaced: {
+    marginTop: theme.spacing.sm,
+  },
+  input: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    minHeight: 48,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
   modalCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.lg,
@@ -384,6 +478,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: theme.spacing.sm,
+  },
+  optional: {
+    color: theme.colors.textSecondary,
+    fontWeight: '400',
   },
   productControlRow: {
     alignItems: 'center',
@@ -429,6 +527,9 @@ const styles = StyleSheet.create({
     minWidth: 24,
     textAlign: 'center',
   },
+  required: {
+    color: theme.colors.danger,
+  },
   scrollContent: {
     gap: theme.spacing.md,
     padding: theme.spacing.md,
@@ -462,5 +563,36 @@ const styles = StyleSheet.create({
   selectorText: {
     color: theme.colors.textPrimary,
     fontSize: 15,
+  },
+  typeEmoji: {
+    fontSize: 24,
+  },
+  typeLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  typeLabelSelected: {
+    color: theme.colors.primary,
+  },
+  typeOption: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  typeOptionSelected: {
+    backgroundColor: `${theme.colors.primary}15`,
+    borderColor: theme.colors.primary,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
   },
 });

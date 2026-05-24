@@ -5,6 +5,7 @@ import {
   Order,
   OrderItem,
   OrderStatus,
+  OrderType,
   Plate,
 } from '../../../shared/types';
 
@@ -43,7 +44,9 @@ export type ApiOrder = {
   id: string;
   taqueriaId: string;
   waiterId: string;
-  tableNumber: string;
+  type: string;
+  reference: string | null;
+  deliveryAddress: string | null;
   status: string;
   revision: number;
   priorityTimestamp: string;
@@ -127,8 +130,11 @@ function mapApiOrder(apiOrder: ApiOrder): Order {
     id: apiOrder.id,
     taqueriaId: apiOrder.taqueriaId,
     waiterId: apiOrder.waiterId,
-    tableNumber: apiOrder.tableNumber,
-    table: apiOrder.tableNumber,
+    type: (apiOrder.type as OrderType) ?? 'DINE_IN',
+    reference: apiOrder.reference ?? null,
+    deliveryAddress: apiOrder.deliveryAddress ?? null,
+    tableNumber: apiOrder.reference ?? '',
+    table: apiOrder.reference ?? '',
     status: apiOrder.status as OrderStatus,
     revision: apiOrder.revision,
     priorityTimestamp: apiOrder.priorityTimestamp,
@@ -150,6 +156,12 @@ type AppendPlatesPayload = Array<{
     notes?: string;
   }>;
 }>;
+
+type UpdateOrderClassification = {
+  type: OrderType;
+  reference?: string | null;
+  deliveryAddress?: string | null;
+};
 
 export const ordersService = {
   parseOrder(apiOrder: ApiOrder): Order {
@@ -184,12 +196,22 @@ export const ordersService = {
   async appendPlatesToOrder(
     orderId: string,
     plates: AppendPlatesPayload,
+    classification?: UpdateOrderClassification,
   ): Promise<void> {
-    if (plates.length === 0) {
+    const body: Record<string, unknown> = {};
+    if (plates.length > 0) {
+      body.plates = plates;
+    }
+    if (classification) {
+      body.type = classification.type;
+      body.reference = classification.reference ?? null;
+      body.deliveryAddress = classification.deliveryAddress ?? null;
+    }
+    if (Object.keys(body).length === 0) {
       return;
     }
     try {
-      await apiClient.patch(`/orders/${orderId}`, {plates});
+      await apiClient.patch(`/orders/${orderId}`, body);
     } catch (error) {
       throw new Error(
         extractErrorMessage(

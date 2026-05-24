@@ -28,6 +28,8 @@ export type OrderStatus =
   | 'DELIVERED'
   | 'CANCELLED';
 
+export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+
 export type OrderItem = {
   id?: string;
   productId: string;
@@ -55,8 +57,12 @@ export type Plate = {
 
 export type Order = {
   id: string;
+  type: OrderType;
+  reference: string | null;
+  deliveryAddress: string | null;
+  /** @deprecated Use reference */
   tableNumber: string;
-  /** @deprecated Use tableNumber */
+  /** @deprecated Use reference */
   table: string;
   plates: Plate[];
   /** @deprecated Use plates[].items */
@@ -71,7 +77,9 @@ export type Order = {
 };
 
 export type CreateOrderPayload = {
-  tableNumber: string;
+  type: OrderType;
+  reference?: string;
+  deliveryAddress?: string;
   plates: Array<{
     plateNumber: number;
     items: Array<{

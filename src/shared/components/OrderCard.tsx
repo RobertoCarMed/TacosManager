@@ -4,6 +4,17 @@ import { theme } from '../constants';
 import { Order } from '../types';
 import { formatOrderTime } from '../utils';
 
+function getOrderHeaderLabel(order: Order): string {
+  const type = order.type ?? 'DINE_IN';
+  if (type === 'DELIVERY') {
+    return `🛵 ${order.deliveryAddress ?? order.reference ?? order.tableNumber}`;
+  }
+  if (type === 'TAKEAWAY') {
+    return `🥡 ${order.reference ?? order.tableNumber}`;
+  }
+  return `🍽 ${order.reference ?? order.tableNumber}`;
+}
+
 type OrderCardProps = {
   order: Order;
   footer?: React.ReactNode;
@@ -82,7 +93,7 @@ export function OrderCard({
         <View>
           <View style={styles.titleRowTable}>
             <Text style={[styles.table, isKitchen ? styles.tableKitchen : null]}>
-              Mesa {order.table}
+              {isKitchen ? `Mesa ${order.table}` : getOrderHeaderLabel(order)}
             </Text>
             {showReadOnlyLabel ? (
               <View style={styles.readOnlyBadge}>

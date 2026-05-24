@@ -10,11 +10,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { WaiterStackParamList } from '../../../navigation/types';
 import { AppButton, OrderCard, Screen } from '../../../shared/components';
 import { theme } from '../../../shared/constants';
+import { OrderType } from '../../../shared/types';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useProducts } from '../../products/hooks/useProducts';
 import { Product } from '../../products/types';
@@ -24,6 +26,12 @@ import { useEditOrder } from '../hooks/useEditOrder';
 const productPlaceholder = require('../../../assets/images/product-placeholder.jpg');
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'EditOrder'>;
+
+const ORDER_TYPES: { value: OrderType; emoji: string; label: string }[] = [
+  { value: 'DINE_IN', emoji: '🍽', label: 'Comer aquí' },
+  { value: 'TAKEAWAY', emoji: '🥡', label: 'Para llevar' },
+  { value: 'DELIVERY', emoji: '🛵', label: 'Delivery' },
+];
 
 export function EditOrderScreen({ navigation, route }: Props) {
   const { orderId } = route.params;
@@ -40,7 +48,9 @@ export function EditOrderScreen({ navigation, route }: Props) {
     addPlate,
     addProduct,
     canSave,
+    changeOrderType,
     decrementQuantity,
+    deliveryAddress,
     error,
     existingOrder,
     hasNewItems,
@@ -48,8 +58,10 @@ export function EditOrderScreen({ navigation, route }: Props) {
     isLoading,
     isLoadingOrder,
     loadError,
+    orderType,
     plates,
     quantity,
+    reference,
     removePlate,
     removeProduct,
     saveChanges,
@@ -57,6 +69,8 @@ export function EditOrderScreen({ navigation, route }: Props) {
     selectedComplements,
     selectedProduct,
     setActivePlateId,
+    setDeliveryAddress,
+    setReference,
     toggleComplement,
   } = useEditOrder(orderId);
 
@@ -99,12 +113,12 @@ export function EditOrderScreen({ navigation, route }: Props) {
     () => Boolean(selectedProduct) && quantity > 0,
     [quantity, selectedProduct],
   );
+
   const handleSafeGoBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
-
     navigation.navigate('WaiterOrders');
   };
 
@@ -163,6 +177,85 @@ export function EditOrderScreen({ navigation, route }: Props) {
 
         <OrderCard order={orderWithResolvedPrices} readOnly />
 
+        {/* ── Classification editor ─────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Clasificación del pedido</Text>
+        <Text style={styles.hintText}>
+          Puedes cambiar el tipo y referencia sin agregar platos nuevos.
+        </Text>
+
+        <View style={styles.typeSelector}>
+          {ORDER_TYPES.map(t => (
+            <Pressable
+              key={t.value}
+              onPress={() => changeOrderType(t.value)}
+              style={({ pressed }) => [
+                styles.typeOption,
+                orderType === t.value && styles.typeOptionSelected,
+                { opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Text style={styles.typeEmoji}>{t.emoji}</Text>
+              <Text
+                style={[
+                  styles.typeLabel,
+                  orderType === t.value && styles.typeLabelSelected,
+                ]}
+              >
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {orderType !== 'DELIVERY' ? (
+          <View style={styles.section}>
+            <Text style={styles.fieldLabel}>
+              {orderType === 'DINE_IN' ? 'Referencia' : 'Nombre de quien recogerá'}
+              <Text style={styles.required}> *</Text>
+            </Text>
+            <TextInput
+              autoCapitalize="words"
+              keyboardType="default"
+              onChangeText={setReference}
+              placeholder={orderType === 'DINE_IN' ? 'Mesa 4' : 'Roberto'}
+              placeholderTextColor={theme.colors.textSecondary}
+              style={styles.input}
+              value={reference}
+            />
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.fieldLabel}>
+              Dirección
+              <Text style={styles.required}> *</Text>
+            </Text>
+            <TextInput
+              autoCapitalize="sentences"
+              keyboardType="default"
+              onChangeText={setDeliveryAddress}
+              placeholder="Av. Juárez #123"
+              placeholderTextColor={theme.colors.textSecondary}
+              style={[styles.input, styles.inputMultiline]}
+              multiline
+              value={deliveryAddress}
+            />
+            <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>
+              Nombre de referencia
+              <Text style={styles.optional}> (opcional)</Text>
+            </Text>
+            <TextInput
+              autoCapitalize="words"
+              keyboardType="default"
+              onChangeText={setReference}
+              placeholder="Roberto"
+              placeholderTextColor={theme.colors.textSecondary}
+              style={styles.input}
+              value={reference}
+            />
+          </View>
+        )}
+
+        {/* ── New plates ────────────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Nuevos productos</Text>
         <Text style={styles.hintText}>
           Los platos e items actuales no se pueden quitar. Agrega platos
@@ -214,9 +307,7 @@ export function EditOrderScreen({ navigation, route }: Props) {
                 !selectedProduct ? styles.selectorPlaceholder : null,
               ]}
             >
-              {selectedProduct
-                ? selectedProduct.name
-                : 'Selecciona un producto'}
+              {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
             </Text>
           </Pressable>
 
@@ -293,9 +384,9 @@ export function EditOrderScreen({ navigation, route }: Props) {
           loading={isLoading}
           onPress={handleSave}
         />
-        {!hasNewItems ? (
+        {!hasNewItems && !canSave ? (
           <Text style={styles.disabledHint}>
-            Agrega productos nuevos para activar el boton.
+            Cambia el tipo/referencia o agrega productos para activar el boton.
           </Text>
         ) : null}
       </ScrollView>
@@ -425,6 +516,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  fieldLabelSpaced: {
+    marginTop: theme.spacing.sm,
+  },
   headingBlock: {
     marginBottom: theme.spacing.xs,
   },
@@ -436,6 +530,21 @@ const styles = StyleSheet.create({
   hintText: {
     color: theme.colors.textSecondary,
     fontSize: 14,
+  },
+  input: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    minHeight: 48,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  inputMultiline: {
+    minHeight: 72,
+    textAlignVertical: 'top',
   },
   loadingText: {
     color: theme.colors.textSecondary,
@@ -474,6 +583,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: theme.spacing.sm,
+  },
+  optional: {
+    color: theme.colors.textSecondary,
+    fontWeight: '400',
   },
   productControlRow: {
     alignItems: 'center',
@@ -519,6 +632,9 @@ const styles = StyleSheet.create({
     minWidth: 24,
     textAlign: 'center',
   },
+  required: {
+    color: theme.colors.danger,
+  },
   scrollContent: {
     gap: theme.spacing.md,
     padding: theme.spacing.md,
@@ -557,5 +673,36 @@ const styles = StyleSheet.create({
   selectorText: {
     color: theme.colors.textPrimary,
     fontSize: 15,
+  },
+  typeEmoji: {
+    fontSize: 24,
+  },
+  typeLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  typeLabelSelected: {
+    color: theme.colors.primary,
+  },
+  typeOption: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+  },
+  typeOptionSelected: {
+    backgroundColor: `${theme.colors.primary}15`,
+    borderColor: theme.colors.primary,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
   },
 });

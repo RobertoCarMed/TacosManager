@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '../../auth';
 import { ordersService } from '../services/ordersService';
 import { Product } from '../../products/types';
+import { OrderType } from '../../../shared/types';
 
 type NewOrderItem = {
   productId: string;
@@ -26,7 +27,9 @@ function generatePlateId(): string {
 }
 
 export function useCreateOrder() {
-  const [table, setTable] = useState('');
+  const [orderType, setOrderType] = useState<OrderType>('DINE_IN');
+  const [reference, setReference] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [plates, setPlates] = useState<NewPlate[]>([
     { id: generatePlateId(), items: [] },
   ]);
@@ -37,6 +40,15 @@ export function useCreateOrder() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+
+  // ── Order type ──────────────────────────────────────────────────────
+
+  const changeOrderType = useCallback((type: OrderType) => {
+    setOrderType(type);
+    setReference('');
+    setDeliveryAddress('');
+    setError(null);
+  }, []);
 
   // ── Plate management ────────────────────────────────────────────────
 
@@ -145,8 +157,17 @@ export function useCreateOrder() {
   // ── Save ────────────────────────────────────────────────────────────
 
   const saveOrder = useCallback(async () => {
-    if (!table.trim()) {
-      setError('Mesa o cliente es obligatorio.');
+    if (orderType !== 'DELIVERY' && !reference.trim()) {
+      setError(
+        orderType === 'DINE_IN'
+          ? 'La referencia (mesa) es obligatoria.'
+          : 'El nombre de quien recoge es obligatorio.',
+      );
+      return false;
+    }
+
+    if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
+      setError('La dirección de entrega es obligatoria.');
       return false;
     }
 
@@ -166,7 +187,9 @@ export function useCreateOrder() {
       setIsLoading(true);
 
       await ordersService.createOrder({
-        tableNumber: table.trim(),
+        type: orderType,
+        reference: reference.trim() || undefined,
+        deliveryAddress: deliveryAddress.trim() || undefined,
         plates: nonEmptyPlates.map((p, i) => ({
           plateNumber: i + 1,
           items: p.items.map(item => ({
@@ -178,7 +201,9 @@ export function useCreateOrder() {
       });
 
       const freshPlate: NewPlate = { id: generatePlateId(), items: [] };
-      setTable('');
+      setOrderType('DINE_IN');
+      setReference('');
+      setDeliveryAddress('');
       setPlates([freshPlate]);
       setActivePlateId(freshPlate.id);
       setSelectedProduct(null);
@@ -196,14 +221,22 @@ export function useCreateOrder() {
     } finally {
       setIsLoading(false);
     }
-  }, [plates, table, user?.taqueriaId]);
+  }, [deliveryAddress, orderType, plates, reference, user?.taqueriaId]);
+
+  const isClassificationValid = useMemo(
+    () =>
+      orderType === 'DELIVERY'
+        ? Boolean(deliveryAddress.trim())
+        : Boolean(reference.trim()),
+    [deliveryAddress, orderType, reference],
+  );
 
   const canSave = useMemo(
     () =>
-      Boolean(table.trim()) &&
+      isClassificationValid &&
       plates.some(p => p.items.length > 0) &&
       !isLoading,
-    [isLoading, plates, table],
+    [isClassificationValid, isLoading, plates],
   );
 
   return {
@@ -211,12 +244,16 @@ export function useCreateOrder() {
     addPlate,
     addProduct,
     canSave,
+    changeOrderType,
     decrementQuantity,
+    deliveryAddress,
     error,
     incrementQuantity,
     isLoading,
+    orderType,
     plates,
     quantity,
+    reference,
     removePlate,
     removeProduct,
     saveOrder,
@@ -224,8 +261,8 @@ export function useCreateOrder() {
     selectedComplements,
     selectedProduct,
     setActivePlateId,
-    setTable,
-    table,
+    setDeliveryAddress,
+    setReference,
     toggleComplement,
   };
 }
