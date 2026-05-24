@@ -56,7 +56,7 @@ function toTimestamp(value: string | number) {
 }
 
 export function KitchenScreen({navigation}: Props) {
-  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('today');
+  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('active');
   const {error, orders, updateOrderStatus} = useOrders({dateFilter});
   const [animatedOrders, setAnimatedOrders] = useState(orders);
   const hasSyncedInitialOrders = useRef(false);

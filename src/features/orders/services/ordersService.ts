@@ -8,7 +8,7 @@ import {
   Plate,
 } from '../../../shared/types';
 
-export type OrderDateFilter = 'today' | '7d' | '1m' | '3m';
+export type OrderDateFilter = 'active' | 'today' | '7d' | '1m' | '3m';
 
 type SubscribeOrdersOptions = {
   createdBy?: string;
@@ -54,7 +54,7 @@ export type ApiOrder = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getStartDateMs(filter: OrderDateFilter): number {
+function getStartDateMs(filter: Exclude<OrderDateFilter, 'active'>): number {
   const now = new Date();
 
   if (filter === 'today') {
@@ -205,7 +205,10 @@ export const ordersService = {
     onData: (orders: Order[]) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const startDateMs = getStartDateMs(options.dateFilter);
+    const startDateMs =
+      options.dateFilter === 'active'
+        ? 0
+        : getStartDateMs(options.dateFilter);
     let cancelled = false;
 
     const ordersRequest = apiClient.get<ApiOrder[]>('/orders');
@@ -218,11 +221,17 @@ export const ordersService = {
         if (cancelled) {
           return;
         }
-        const orders = data
-          .map(mapApiOrder)
-          .filter(
-            order => new Date(order.createdAt).getTime() >= startDateMs,
-          );
+        const mapped = data.map(mapApiOrder);
+        const orders =
+          options.dateFilter === 'active'
+            ? mapped.filter(
+                order =>
+                  order.status !== 'DELIVERED' && order.status !== 'CANCELLED',
+              )
+            : mapped.filter(
+                order =>
+                  new Date(order.createdAt).getTime() >= startDateMs,
+              );
         onData(orders);
       })
       .catch(error => {

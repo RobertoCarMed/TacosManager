@@ -26,7 +26,7 @@ export function useOrders(options?: UseOrdersOptions) {
   const isLoading = useAppSelector(selectOrdersLoading);
   const error = useAppSelector(selectOrdersError);
   const {user} = useAuth();
-  const dateFilter = options?.dateFilter ?? 'today';
+  const dateFilter = options?.dateFilter ?? 'active';
   const createdBy = options?.createdBy;
   const shouldSubscribe = options?.subscribe ?? true;
 

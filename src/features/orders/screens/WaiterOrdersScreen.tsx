@@ -15,7 +15,7 @@ type Props = NativeStackScreenProps<WaiterStackParamList, 'WaiterOrders'>;
 export function WaiterOrdersScreen({navigation}: Props) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const {signOut, user} = useAuth();
-  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('today');
+  const [dateFilter, setDateFilter] = useState<OrderDateFilter>('active');
   const {error, orders} = useOrders({
     createdBy: user?.id,
     dateFilter,

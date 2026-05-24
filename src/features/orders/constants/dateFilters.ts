@@ -4,6 +4,7 @@ export const orderDateFilterOptions: Array<{
   label: string;
   value: OrderDateFilter;
 }> = [
+  {label: 'Activos', value: 'active'},
   {label: 'Hoy', value: 'today'},
   {label: 'Ultimos 7 dias', value: '7d'},
   {label: 'Ultimo mes', value: '1m'},
