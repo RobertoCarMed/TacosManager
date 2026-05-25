@@ -39,7 +39,7 @@ export function KitchenDashboardScreen({navigation}: Props) {
           <OrderCard
             variant="kitchen"
             footer={
-              item.status === 'PENDING' || item.status === 'UPDATED' ? (
+              item.status === 'PENDING' ? (
                 <AppButton
                   label="Marcar preparando"
                   onPress={() => updateOrderStatus(item.id, 'PREPARING')}

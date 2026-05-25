@@ -22,7 +22,6 @@ const statusLabels: Record<Order['status'], string> = {
   PENDING: 'PENDIENTE',
   PREPARING: 'PREPARANDO',
   READY: 'LISTO',
-  UPDATED: 'ACTUALIZADA',
 };
 
 const statusColors: Record<Order['status'], string> = {
@@ -31,7 +30,6 @@ const statusColors: Record<Order['status'], string> = {
   PENDING: theme.colors.warning,
   PREPARING: theme.colors.accent,
   READY: theme.colors.primary,
-  UPDATED: '#2E7D32',
 };
 
 function getSafePrice(value: number | undefined) {
@@ -148,15 +146,14 @@ export function OrderCard({
 
                   if (isKitchen) {
                     return (
-                      <Text
+                      <View
                         key={itemKey}
-                        style={[
-                          styles.itemText,
-                          isKitchen ? styles.itemTextKitchen : null,
-                        ]}
+                        style={item.isNew ? styles.itemRowNew : null}
                       >
-                        {item.quantity}x {item.name}
-                      </Text>
+                        <Text style={[styles.itemText, styles.itemTextKitchen]}>
+                          {item.quantity}x {item.name}
+                        </Text>
+                      </View>
                     );
                   }
 
@@ -192,15 +189,14 @@ export function OrderCard({
 
             if (isKitchen) {
               return (
-                <Text
+                <View
                   key={itemKey}
-                  style={[
-                    styles.itemText,
-                    isKitchen ? styles.itemTextKitchen : null,
-                  ]}
+                  style={item.isNew ? styles.itemRowNew : null}
                 >
-                  {item.quantity}x {item.name}
-                </Text>
+                  <Text style={[styles.itemText, styles.itemTextKitchen]}>
+                    {item.quantity}x {item.name}
+                  </Text>
+                </View>
               );
             }
 
@@ -350,6 +346,14 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     textAlign: 'right',
+  },
+  itemRowNew: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#C8E6C9',
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
   itemRowWaiter: {
     alignItems: 'center',

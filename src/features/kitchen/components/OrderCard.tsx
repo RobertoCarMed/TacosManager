@@ -19,7 +19,6 @@ const statusLabels: Record<Order['status'], string> = {
   PENDING: 'PENDIENTE',
   PREPARING: 'PREPARANDO',
   READY: 'LISTO',
-  UPDATED: 'ACTUALIZADA',
 };
 
 const statusColors: Record<Order['status'], { bg: string; text: string }> = {
@@ -28,7 +27,6 @@ const statusColors: Record<Order['status'], { bg: string; text: string }> = {
   PENDING: { bg: '#FFF4DE', text: theme.colors.warning },
   PREPARING: { bg: '#E9F2FF', text: '#1E5FAF' },
   READY: { bg: '#E8F5EC', text: theme.colors.success },
-  UPDATED: { bg: '#E8F5E9', text: '#2E7D32' },
 };
 
 function getOrderTime(createdAt: string | number) {
@@ -44,7 +42,7 @@ function getOrderTime(createdAt: string | number) {
 }
 
 function getActionForStatus(status: Order['status']) {
-  if (status === 'PENDING' || status === 'UPDATED') {
+  if (status === 'PENDING') {
     return {
       label: 'Marcar preparando',
       nextStatus: 'PREPARING' as const,

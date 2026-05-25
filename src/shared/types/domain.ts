@@ -21,7 +21,6 @@ export type ApiTaqueria = {
 };
 
 export type OrderStatus =
-  | 'UPDATED'
   | 'PENDING'
   | 'PREPARING'
   | 'READY'
