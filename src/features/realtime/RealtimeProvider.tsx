@@ -9,7 +9,7 @@ import {socketService} from '../../services/realtime/socketService';
 type OrderEvent = {order: ApiOrder};
 
 export function RealtimeProvider({children}: PropsWithChildren) {
-  const {user} = useAuth();
+  const {user, signOut} = useAuth();
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -37,16 +37,24 @@ export function RealtimeProvider({children}: PropsWithChildren) {
       dispatch(upsertOrder(ordersService.parseOrder(order)));
     }
 
+    function onDisconnect(reason: string) {
+      if (reason === 'io server disconnect') {
+        signOut();
+      }
+    }
+
     socket.on('order-created', onOrderCreated);
     socket.on('order-updated', onOrderUpdated);
     socket.on('order-status-changed', onOrderStatusChanged);
+    socket.on('disconnect', onDisconnect);
 
     return () => {
       socket.off('order-created', onOrderCreated);
       socket.off('order-updated', onOrderUpdated);
       socket.off('order-status-changed', onOrderStatusChanged);
+      socket.off('disconnect', onDisconnect);
     };
-  }, [user, dispatch]);
+  }, [user, dispatch, signOut]);
 
   return <>{children}</>;
 }
