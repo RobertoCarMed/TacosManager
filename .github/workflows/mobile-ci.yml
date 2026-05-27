@@ -1,0 +1,127 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  # ─── Job 1: Validate + Build QA ──────────────────────────────────────────────
+  # Runs on every PR and every push to main.
+  # Generates APK artifact only on push to main.
+  validate-and-build-qa:
+    name: Validate & Build QA
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env.qa
+        run: |
+          printf 'API_URL=https://api-qa.tacosmanager.com\nSOCKET_URL=https://api-qa.tacosmanager.com\nENVIRONMENT=qa\n' > .env.qa
+
+      - name: Create signing credentials
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf 'MYAPP_UPLOAD_STORE_FILE=tacosmanager.keystore\nMYAPP_UPLOAD_KEY_ALIAS=tacosmanager-key\nMYAPP_UPLOAD_STORE_PASSWORD=%s\nMYAPP_UPLOAD_KEY_PASSWORD=%s\n' \
+            "${KEYSTORE_PASSWORD}" "${KEY_PASSWORD}" > .env
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>&1 | tail -3 || true
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeCheck
+        run: npm run typecheck
+
+      - name: Build QA APK
+        run: npm run build:android:qa
+
+      - name: Upload APK QA artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-qa-release-${{ github.sha }}
+          path: android/app/build/outputs/apk/qa/release/app-qa-release.apk
+          retention-days: 30
+
+  # ─── Job 2: Build Production ─────────────────────────────────────────────────
+  # Runs only on push to main, after QA build succeeds.
+  # Generates AAB artifact for Play Store.
+  build-production:
+    name: Build Production
+    runs-on: ubuntu-latest
+    needs: validate-and-build-qa
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env.production
+        run: |
+          printf 'API_URL=https://api.tacosmanager.com\nSOCKET_URL=https://api.tacosmanager.com\nENVIRONMENT=production\n' > .env.production
+
+      - name: Create signing credentials
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf 'MYAPP_UPLOAD_STORE_FILE=tacosmanager.keystore\nMYAPP_UPLOAD_KEY_ALIAS=tacosmanager-key\nMYAPP_UPLOAD_STORE_PASSWORD=%s\nMYAPP_UPLOAD_KEY_PASSWORD=%s\n' \
+            "${KEYSTORE_PASSWORD}" "${KEY_PASSWORD}" > .env
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>&1 | tail -3 || true
+
+      - name: Build Production AAB
+        run: npm run build:android:prod
+
+      - name: Upload AAB Production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-production-release-${{ github.sha }}
+          path: android/app/build/outputs/bundle/productionRelease/app-production-release.aab
+          retention-days: 30
