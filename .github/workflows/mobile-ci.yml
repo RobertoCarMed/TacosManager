@@ -119,6 +119,9 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>&1 | tail -3 || true
 
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
       - name: Build Production AAB
         run: npm run build:android:prod
 
