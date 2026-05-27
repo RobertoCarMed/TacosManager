@@ -1,4 +1,4 @@
-import {AppUser, ApiTaqueria, UserRole} from '../../shared/types';
+import {ApiTaqueria, UserRole} from '../../shared/types';
 
 export type RegistrationRole = UserRole;
 

@@ -15,8 +15,13 @@ export const socketService = {
       socket = null;
     }
 
-    socket = io(APP_CONFIG.baseApiUrl, {
+    socket = io(APP_CONFIG.socketUrl, {
       auth: {token},
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     return socket;
