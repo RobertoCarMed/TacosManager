@@ -27,7 +27,6 @@ export function useOrders(options?: UseOrdersOptions) {
   const error = useAppSelector(selectOrdersError);
   const {user} = useAuth();
   const dateFilter = options?.dateFilter ?? 'active';
-  const createdBy = options?.createdBy;
   const shouldSubscribe = options?.subscribe ?? true;
 
   useFocusEffect(
@@ -57,7 +56,7 @@ export function useOrders(options?: UseOrdersOptions) {
         unsubscribe();
         dispatch(setOrdersLoading(false));
       };
-    }, [createdBy, dateFilter, dispatch, shouldSubscribe, user?.taqueriaId]),
+    }, [dateFilter, dispatch, shouldSubscribe, user?.taqueriaId]),
   );
 
   const createOrder = useCallback(
