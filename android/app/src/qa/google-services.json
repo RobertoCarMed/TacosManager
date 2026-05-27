@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "643896575174",
+    "project_id": "tacos-manager",
+    "storage_bucket": "tacos-manager.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:643896575174:android:c50b5a22692516980703c7",
+        "android_client_info": {
+          "package_name": "com.tacosmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRzNhIbNwo1DJyMSBVV7iWZid6ZgQJtbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:643896575174:android:8684f22af01673b90703c7",
+        "android_client_info": {
+          "package_name": "com.tacosmanager.qa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRzNhIbNwo1DJyMSBVV7iWZid6ZgQJtbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
