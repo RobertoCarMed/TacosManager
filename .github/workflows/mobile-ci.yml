@@ -2,19 +2,54 @@ name: Mobile CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, qa, dev]
   pull_request:
+    branches: [main, qa, dev]
 
 env:
   JAVA_VERSION: '17'
 
+# ─── Estructura de jobs ────────────────────────────────────────────────────────
+#
+#   Mobile • Lint & TypeCheck   ← todos los triggers
+#          ↓
+#   Mobile • Build QA APK       ← solo push a qa y main
+#          ↓
+#   Mobile • Build Production AAB ← solo push a main
+#
+# Composite Action: no implementada. Con solo dos jobs de build que comparten
+# el mismo setup de 4 pasos, el overhead de un archivo action.yml adicional
+# supera el beneficio. El setup es idéntico y legible inline.
+
 jobs:
-  # ─── Job 1: Validate + Build QA ──────────────────────────────────────────────
-  # Runs on every PR and every push to main.
-  # Generates APK artifact only on push to main.
-  validate-and-build-qa:
-    name: Validate & Build QA
+  lint-typecheck:
+    name: Mobile • Lint & TypeCheck
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint || (echo "::error::Lint failed — fix all ESLint errors before merging" && exit 1)
+
+      - name: TypeCheck
+        run: npm run typecheck || (echo "::error::TypeCheck failed — fix all TypeScript errors before merging" && exit 1)
+
+  build-qa:
+    name: Mobile • Build QA APK
+    runs-on: ubuntu-latest
+    needs: lint-typecheck
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/qa' || github.ref == 'refs/heads/main')
 
     steps:
       - name: Checkout
@@ -40,7 +75,8 @@ jobs:
 
       - name: Create .env.qa
         run: |
-          printf 'API_URL=https://api-qa.tacosmanager.com\nSOCKET_URL=https://api-qa.tacosmanager.com\nENVIRONMENT=qa\n' > .env.qa
+          printf 'API_URL=%s\nSOCKET_URL=%s\nENVIRONMENT=qa\n' \
+            "${{ vars.QA_API_URL }}" "${{ vars.QA_SOCKET_URL }}" > .env.qa
 
       - name: Create signing credentials
         env:
@@ -53,34 +89,24 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>&1 | tail -3 || true
 
-      - name: Lint
-        run: npm run lint
-
-      - name: TypeCheck
-        run: npm run typecheck
-
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
       - name: Build QA APK
-        run: npm run build:android:qa
+        run: npm run build:android:qa || (echo "::error::QA APK build failed — review Gradle output above for details" && exit 1)
 
       - name: Upload APK QA artifact
-        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: app-qa-release-${{ github.sha }}
           path: android/app/build/outputs/apk/qa/release/app-qa-release.apk
           retention-days: 30
 
-  # ─── Job 2: Build Production ─────────────────────────────────────────────────
-  # Runs only on push to main, after QA build succeeds.
-  # Generates AAB artifact for Play Store.
   build-production:
-    name: Build Production
+    name: Mobile • Build Production AAB
     runs-on: ubuntu-latest
-    needs: validate-and-build-qa
-    if: github.ref == 'refs/heads/main'
+    needs: build-qa
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
@@ -106,7 +132,8 @@ jobs:
 
       - name: Create .env.production
         run: |
-          printf 'API_URL=https://api.tacosmanager.com\nSOCKET_URL=https://api.tacosmanager.com\nENVIRONMENT=production\n' > .env.production
+          printf 'API_URL=%s\nSOCKET_URL=%s\nENVIRONMENT=production\n' \
+            "${{ vars.PROD_API_URL }}" "${{ vars.PROD_SOCKET_URL }}" > .env.production
 
       - name: Create signing credentials
         env:
@@ -123,7 +150,7 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Production AAB
-        run: npm run build:android:prod
+        run: npm run build:android:prod || (echo "::error::Production AAB build failed — review Gradle output above for details" && exit 1)
 
       - name: Upload AAB Production artifact
         uses: actions/upload-artifact@v4
