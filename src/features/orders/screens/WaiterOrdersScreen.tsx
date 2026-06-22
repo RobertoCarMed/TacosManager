@@ -1,6 +1,6 @@
 ﻿import React, {useMemo, useState} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Alert, FlatList, Pressable, StyleSheet, Text, View} from 'react-native';
 import {WaiterStackParamList} from '../../../navigation/types';
 import {AppButton, OrderCard, Screen} from '../../../shared/components';
 import {theme} from '../../../shared/constants';
@@ -9,12 +9,17 @@ import {useOrders} from '../hooks/useOrders';
 import {useProducts} from '../../products/hooks/useProducts';
 import {OrderDateFilter} from '../services/ordersService';
 import {orderDateFilterOptions} from '../constants/dateFilters';
+import {Order} from '../../../shared/types';
+import {printerStorage} from '../../../services/storage/printerStorage';
+import {sendRawBytes} from '../../../services/printing/tcpPrinterService';
+import {buildTicket, hasCompleteUnitPrices} from '../../../services/printing/escposRenderer';
 
 type Props = NativeStackScreenProps<WaiterStackParamList, 'WaiterOrders'>;
 
 export function WaiterOrdersScreen({navigation}: Props) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const {signOut, user} = useAuth();
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const {signOut, user, taqueria} = useAuth();
   const [dateFilter, setDateFilter] = useState<OrderDateFilter>('active');
   const {error, orders} = useOrders({
     createdBy: user?.id,
@@ -59,6 +64,43 @@ export function WaiterOrdersScreen({navigation}: Props) {
     });
   }, [orders, products]);
 
+  const handlePrint = async (order: Order) => {
+    if (!taqueria) return;
+
+    const config = await printerStorage.getConfig();
+    if (!config) {
+      navigation.navigate('PrinterConfig');
+      return;
+    }
+
+    if (!hasCompleteUnitPrices(order)) {
+      Alert.alert(
+        'Sin precios',
+        'Este pedido tiene items sin precio registrado y no se puede imprimir la cuenta.',
+      );
+      return;
+    }
+
+    setPrintingOrderId(order.id);
+    try {
+      const ticket = buildTicket(order, taqueria);
+      await sendRawBytes(config.host, config.port, ticket);
+    } catch (err) {
+      Alert.alert(
+        'Error de impresión',
+        err instanceof Error
+          ? err.message
+          : 'No se pudo conectar con la impresora.',
+        [
+          {text: 'Cancelar', style: 'cancel'},
+          {text: 'Reintentar', onPress: () => handlePrint(order)},
+        ],
+      );
+    } finally {
+      setPrintingOrderId(null);
+    }
+  };
+
   return (
     <Screen contentStyle={styles.container}>
       <View style={styles.header}>
@@ -102,20 +144,37 @@ export function WaiterOrdersScreen({navigation}: Props) {
             </Text>
           </View>
         }
-        renderItem={({item}) => (
-          <OrderCard
-            onEditPress={() =>
-              navigation.navigate('EditOrder', {orderId: item.id})
-            }
-            onPress={() =>
-              setSelectedOrderId(current =>
-                current === item.id ? null : item.id,
-              )
-            }
-            order={item}
-            selected={selectedOrderId === item.id}
-          />
-        )}
+        renderItem={({item}) => {
+          const isSelected = selectedOrderId === item.id;
+          const canPrint =
+            item.status === 'READY' || item.status === 'DELIVERED';
+          const isPrinting = printingOrderId === item.id;
+
+          return (
+            <OrderCard
+              footer={
+                isSelected && canPrint ? (
+                  <AppButton
+                    disabled={isPrinting}
+                    label={isPrinting ? 'Imprimiendo...' : 'Imprimir ticket'}
+                    loading={isPrinting}
+                    onPress={() => handlePrint(item)}
+                  />
+                ) : undefined
+              }
+              onEditPress={() =>
+                navigation.navigate('EditOrder', {orderId: item.id})
+              }
+              onPress={() =>
+                setSelectedOrderId(current =>
+                  current === item.id ? null : item.id,
+                )
+              }
+              order={item}
+              selected={isSelected}
+            />
+          );
+        }}
       />
 
       <Pressable

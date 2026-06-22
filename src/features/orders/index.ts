@@ -3,6 +3,7 @@ export * from './hooks/useOrders';
 export * from './screens/CreateOrderScreen';
 export * from './screens/EditOrderScreen';
 export * from './screens/OrdersScreen';
+export * from './screens/PrinterConfigScreen';
 export * from './screens/WaiterOrdersScreen';
 export * from './services/ordersService';
 export * from './store/ordersSlice';
