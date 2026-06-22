@@ -23,6 +23,7 @@ type SubscribeOrdersOptions = {
 export type ApiItem = {
   id: string;
   productId: string;
+  unitPrice: number | null;
   quantity: number;
   selectedComplements: string[];
   notes?: string;
@@ -112,6 +113,7 @@ function mapApiOrder(apiOrder: ApiOrder): Order {
         productId: apiItem.productId,
         name: product?.name ?? apiItem.productId,
         price: product?.price,
+        unitPrice: apiItem.unitPrice ?? 0,
         quantity: apiItem.quantity,
         selectedComplements: apiItem.selectedComplements,
         complements: apiItem.selectedComplements,
