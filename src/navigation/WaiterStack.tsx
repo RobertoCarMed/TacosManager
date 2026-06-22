@@ -3,6 +3,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {
   CreateOrderScreen,
   EditOrderScreen,
+  PrinterConfigScreen,
   WaiterOrdersScreen,
 } from '../features/orders';
 import {theme} from '../shared/constants';
@@ -27,6 +28,11 @@ export function WaiterStack() {
         name="EditOrder"
         component={EditOrderScreen}
         options={{title: 'Editar pedido'}}
+      />
+      <Stack.Screen
+        name="PrinterConfig"
+        component={PrinterConfigScreen}
+        options={{title: 'Configurar impresora'}}
       />
     </Stack.Navigator>
   );

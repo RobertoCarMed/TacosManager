@@ -7,6 +7,7 @@ export type WaiterStackParamList = {
   CreateOrder: undefined;
   EditOrder: {orderId: string};
   WaiterOrders: undefined;
+  PrinterConfig: undefined;
 };
 
 export type KitchenStackParamList = {

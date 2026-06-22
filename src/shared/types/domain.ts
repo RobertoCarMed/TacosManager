@@ -34,6 +34,7 @@ export type OrderItem = {
   productId: string;
   name: string;
   price?: number;
+  unitPrice?: number | null;
   quantity: number;
   selectedComplements: string[];
   /** @deprecated Use selectedComplements */
