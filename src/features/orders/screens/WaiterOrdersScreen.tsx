@@ -85,6 +85,7 @@ export function WaiterOrdersScreen({navigation}: Props) {
     try {
       const ticket = buildTicket(order, taqueria);
       await sendRawBytes(config.host, config.port, ticket);
+      Alert.alert('Ticket impreso', 'El ticket se imprimió correctamente.');
     } catch (err) {
       Alert.alert(
         'Error de impresión',
