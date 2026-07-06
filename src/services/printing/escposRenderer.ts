@@ -58,7 +58,7 @@ function truncate(s: string, width: number): string {
 }
 
 function mxn(amount: number): string {
-  return amount.toFixed(2);
+  return Number(amount).toFixed(2);
 }
 
 function wordWrap(s: string, width: number): string[] {
@@ -88,7 +88,7 @@ export function hasCompleteUnitPrices(order: Order): boolean {
     order.plates.length > 0
       ? order.plates.flatMap(p => p.items)
       : order.items;
-  return items.length > 0 && items.every(item => item.unitPrice != null);
+  return items.length > 0 && items.every(item => item.price != null);
 }
 
 export function buildTicket(order: Order, taqueria: ApiTaqueria): Uint8Array {
@@ -146,7 +146,7 @@ export function buildTicket(order: Order, taqueria: ApiTaqueria): Uint8Array {
 
   let total = 0;
   for (const item of allItems) {
-    const unitPrice = item.unitPrice ?? 0;
+    const unitPrice = item.price ?? 0;
     const subtotal = unitPrice * item.quantity;
     total += subtotal;
     text(
