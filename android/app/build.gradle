@@ -43,8 +43,11 @@ android {
         applicationId "com.tacosmanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.5.0"
+        versionCode 8
+        versionName "1.5.2"
+        // react-native-config busca <applicationId>.BuildConfig; con applicationIdSuffix
+        // (.dev/.qa) eso no coincide con el namespace real, así que se indica explícitamente.
+        resValue "string", "build_config_package", "com.tacosmanager"
     }
 
     flavorDimensions "environment"
