@@ -224,7 +224,20 @@ export function OrderCard({
         </View>
       ) : null}
 
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
+      {footer || (selected && isWaiter && onEditPress != null) ? (
+        <View style={[styles.footer, styles.footerRow]}>
+          {selected && isWaiter && onEditPress != null ? (
+            <Pressable
+              accessibilityLabel="Editar pedido"
+              onPress={onEditPress}
+              style={({ pressed }) => [styles.editButton, { opacity: pressed ? 0.88 : 1 }]}
+            >
+              <Text style={styles.editButtonText}>Editar</Text>
+            </Pressable>
+          ) : null}
+          {footer ? <View style={styles.footerButton}>{footer}</View> : null}
+        </View>
+      ) : null}
     </>
   );
 
@@ -247,16 +260,6 @@ export function OrderCard({
       ) : (
         mainContent
       )}
-
-      {selected && isWaiter && onEditPress != null ? (
-        <Pressable
-          accessibilityLabel="Editar pedido"
-          onPress={onEditPress}
-          style={({ pressed }) => [styles.editFab, { opacity: pressed ? 0.88 : 1 }]}
-        >
-          <Text style={styles.editFabText}>Editar</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -268,26 +271,21 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.lg,
     borderWidth: 1,
     gap: theme.spacing.md,
-    overflow: 'visible',
     padding: theme.spacing.md,
-    position: 'relative',
   },
   cardSelected: {
     backgroundColor: `${theme.colors.primary}0d`,
     borderColor: theme.colors.primary,
     borderWidth: 2,
   },
-  editFab: {
+  editButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.md,
-    bottom: theme.spacing.md,
-    elevation: 3,
-    left: theme.spacing.md,
+    justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: 10,
-    position: 'absolute',
   },
-  editFabText: {
+  editButtonText: {
     color: theme.colors.surface,
     fontSize: 15,
     fontWeight: '800',
@@ -299,6 +297,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: theme.spacing.sm,
+  },
+  footerRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+  },
+  footerButton: {
+    flex: 1,
   },
   header: {
     alignItems: 'center',
